@@ -35,6 +35,7 @@ struct HourlyData {
     time: Option<Vec<String>>,
     temperature_2m: Option<Vec<f32>>,
     relative_humidity_2m: Option<Vec<i32>>,
+    #[allow(dead_code)]
     weather_code: Option<Vec<i32>>,
 }
 
