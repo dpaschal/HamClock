@@ -8,6 +8,7 @@ use tokio::sync::Mutex;
 
 /// Async data fetcher for HamClock
 pub struct DataFetcher {
+    #[allow(dead_code)]
     client: Client,
 }
 

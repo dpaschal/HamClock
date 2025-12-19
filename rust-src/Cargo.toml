@@ -19,6 +19,7 @@ wgpu = "0.19"
 winit = "0.29"
 raw-window-handle = "0.5"
 bytemuck = { version = "1.14", features = ["derive"] }
+pollster = "0.3"
 
 # Math library
 nalgebra = { version = "0.32", features = ["serde-serialize"] }

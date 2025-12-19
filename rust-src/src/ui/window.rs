@@ -9,17 +9,17 @@ use tokio::sync::Mutex;
 
 /// Main application window
 pub struct MainWindow {
-    pub window: Window,
+    pub window: Arc<Window>,
     pub gpu: GpuContext,
     pub data: Arc<Mutex<AppData>>,
 }
 
 impl MainWindow {
     /// Create a new main window
-    pub async fn new(window: Window, data: Arc<Mutex<AppData>>) -> AppResult<Self> {
+    pub async fn new(window: Arc<Window>, data: Arc<Mutex<AppData>>) -> AppResult<Self> {
         log::info!("Creating main window...");
 
-        let gpu = GpuContext::new(&window).await?;
+        let gpu = GpuContext::new(Arc::clone(&window)).await?;
 
         Ok(Self {
             window,
