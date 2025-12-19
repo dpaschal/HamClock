@@ -339,6 +339,34 @@ impl GpuContext {
             );
         }
 
+        // Queue alerts (Phase 8) - render in top-right corner
+        let mut alert_y_offset = 50.0;
+        for alert in &app_data.alert_state.active_alerts {
+            if !alert.is_active() {
+                continue;
+            }
+
+            use crate::data::models::AlertSeverity;
+            let color = match alert.severity {
+                AlertSeverity::Info => [0.5, 0.5, 1.0, 1.0],      // Light blue
+                AlertSeverity::Notice => [1.0, 1.0, 0.0, 1.0],    // Yellow
+                AlertSeverity::Warning => [1.0, 0.65, 0.0, 1.0],  // Orange
+                AlertSeverity::Critical => [1.0, 0.0, 0.0, 1.0],  // Red
+                AlertSeverity::Emergency => [1.0, 0.0, 1.0, 1.0], // Magenta
+            };
+
+            let x_pos = (_width as f32) - 600.0;
+
+            self.text_renderer.queue_text(
+                &alert.message,
+                [x_pos, alert_y_offset],
+                18.0,
+                color,
+            );
+
+            alert_y_offset += 28.0;
+        }
+
         log::debug!("UI elements queued for rendering");
         Ok(())
     }

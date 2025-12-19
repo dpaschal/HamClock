@@ -9,7 +9,7 @@
 //! 4. Data fetching happens in background task
 //! 5. All non-blocking, parallel where possible
 
-use hamclock::{Config, data::AppData, render::gpu::GpuContext};
+use hamclock::{Config, data::AppData, data::AlertDetector, render::gpu::GpuContext}; // Phase 8
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::sync::Mutex;
@@ -41,12 +41,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         config_load_time.as_millis()
     );
 
+    // PHASE 8: Create alert detector with config
+    let alert_detector = AlertDetector::new(config.alert_config.clone());
+
     // OPTIMIZATION 2: Create shared data store early
     let app_data = Arc::new(Mutex::new(AppData::new()));
 
     // OPTIMIZATION 3: Spawn background data fetch task (non-blocking)
     let data_clone = Arc::clone(&app_data);
     let update_interval = config.data_update_interval;
+    let detector_clone = alert_detector.clone(); // Phase 8: Clone detector for background task
     let _data_task = tokio::spawn(async move {
         // Initial delay to let UI show first
         tokio::time::sleep(Duration::from_millis(100)).await;
@@ -56,6 +60,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             {
                 let mut data = data_clone.lock().await;
                 data.update_timestamp();
+                detector_clone.detect_alerts(&mut data); // Phase 8: Run alert detection
             }
             tokio::time::sleep(
                 tokio::time::Duration::from_secs(update_interval)
