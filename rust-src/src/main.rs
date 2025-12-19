@@ -241,14 +241,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
             }
             Event::AboutToWait => {
-                // OPTIMIZATION: Request redraws at configured frame rate (60 FPS = ~16.7ms per frame)
-                let now = Instant::now();
-                let frame_time = Duration::from_millis(1000 / 60); // 60 FPS = 16.67ms per frame
-                if now.duration_since(last_update) >= frame_time {
-                    last_update = now;
-                    if let Some(w) = &window {
-                        w.request_redraw();
-                    }
+                // OPTIMIZATION: Request redraws continuously for fluid animation
+                // Using continuous redraw instead of time-based to avoid window resize spam
+                if let Some(w) = &window {
+                    w.request_redraw();
                 }
             }
             _ => {}
