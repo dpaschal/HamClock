@@ -1,0 +1,40 @@
+[package]
+name = "hamclock"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+# Async runtime and concurrency
+tokio = { version = "1.35", features = ["full"] }
+
+# HTTP client (async)
+reqwest = { version = "0.11", features = ["json"] }
+
+# JSON parsing
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# GPU rendering
+wgpu = "0.19"
+winit = "0.29"
+raw-window-handle = "0.5"
+bytemuck = { version = "1.14", features = ["derive"] }
+
+# Math library
+nalgebra = { version = "0.32", features = ["serde-serialize"] }
+
+# DateTime utilities
+chrono = { version = "0.4", features = ["serde"] }
+
+# Logging
+log = "0.4"
+env_logger = "0.10"
+
+# Error handling
+anyhow = "1.0"
+thiserror = "1.0"
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
