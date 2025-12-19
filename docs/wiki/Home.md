@@ -4,23 +4,35 @@ Welcome to the HamClock Wiki! This documentation covers development, optimizatio
 
 ## Quick Links
 
-- **[Debian Trixie Compatibility](Debian-Trixie-Compatibility)** - libgpiod v2 support for modern Linux systems
-- **[GPIO Optimization](GPIO-Optimization)** - Performance improvements available on optimize/gpio-batching branch
-- **[Building HamClock](Building-HamClock)** - Build instructions for various platforms
+### Current C++ Versions
+- **[Debian Trixie Compatibility](Debian-Trixie-Compatibility)** - libgpiod v2 support (main branch)
+- **[GPIO Optimization](GPIO-Optimization)** - C++ optimizations (optimize/gpio-batching branch)
+- **[Building HamClock](Building-HamClock)** - Build instructions for C++ version
+
+### 🚀 NEW: Rust Rewrite (Laptop Optimized - 2-3x faster)
+- **[Rust Rewrite Overview](Rust-Rewrite-Overview)** - Complete rewrite in Rust for maximum performance
+- **[Rust Architecture](Rust-Architecture)** - Technical design with GPU rendering and async I/O
+- **[Rust Building Guide](Rust-Building-Guide)** - How to build and develop the Rust version
+- **[Rust Performance Plan](Rust-Performance-Plan)** - Detailed performance optimization roadmap
 
 ## Latest Updates
 
+### 🎉 Rust Rewrite Planned (2025-12-18) - LAPTOP-OPTIMIZED BRANCH
+A complete Rust rewrite is in planning phase targeting 2-3x performance improvement:
+- GPU acceleration (wgpu: OpenGL/Vulkan)
+- Async data fetching (tokio runtime)
+- Optimized for 1920x1200+ displays
+- 60+ FPS rendering target
+- < 100MB memory usage
+- < 8% CPU at idle
+
+See [Rust Rewrite Overview](Rust-Rewrite-Overview) for details.
+
 ### Debian Trixie Support (2025-12-18) - MAIN BRANCH
-Added full libgpiod v2 support for Debian Trixie compatibility on the main branch.
+Full libgpiod v2 support for Debian Trixie compatibility.
 
-### GPIO Optimizations (2025-12-18) - EXPERIMENTAL BRANCH
-Experimental branch `optimize/gpio-batching` now available with:
-- 80% reduction in GPIO initialization syscalls
-- Request batching and lazy configuration
-- Software pin state caching
-- Read-write lock for better concurrency
-
-See [GPIO Optimization](GPIO-Optimization) for details.
+### GPIO Optimizations (2025-12-18) - OPTIMIZE/GPIO-BATCHING BRANCH
+Experimental branch with 80% faster GPIO syscalls through request batching and caching.
 
 ## Getting Started
 
@@ -40,8 +52,9 @@ See [GPIO Optimization](GPIO-Optimization) for details.
 
 ## Current Branches
 
-- **main** - Production release with Debian Trixie support
-- **optimize/gpio-batching** - Experimental branch with GPIO optimizations (80% faster syscalls)
+- **main** - Production release with Debian Trixie support (C++)
+- **optimize/gpio-batching** - Experimental branch with GPIO optimizations (C++, 80% faster syscalls)
+- **laptop-optimized** - Rust rewrite for maximum laptop performance (2-3x faster, in development)
 
 ## Supported Platforms
 
