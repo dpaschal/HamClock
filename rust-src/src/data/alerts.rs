@@ -4,7 +4,6 @@ use crate::data::models::{
     AppData, Alert, AlertType, AlertSeverity,
 };
 use crate::config::AlertConfig;
-use chrono::Utc;
 
 #[derive(Clone)]
 pub struct AlertDetector {
