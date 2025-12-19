@@ -276,11 +276,15 @@ impl TextRenderer {
 
         // Early return if no text
         if self.pending_sections.is_empty() {
+            log::warn!("Text render: No pending sections to render!");
             return Ok(());
         }
 
+        log::info!("Text render: Processing {} pending sections", self.pending_sections.len());
+
         // Queue all pending text with glyph_brush
         for (text, position, size, color) in self.pending_sections.drain(..) {
+            log::debug!("Queueing text: '{}' at {:?}", text, position);
             let section = Section {
                 screen_position: (position[0], position[1]),
                 bounds: (self.surface_width, self.surface_height),
@@ -341,29 +345,39 @@ impl TextRenderer {
         );
 
         let quads = quads_ref.into_inner();
+        log::info!("Text render: Brush generated {} quads", quads.len());
 
         match brush_action {
             Ok(BrushAction::Draw(_)) => {
+                log::info!("Text render: BrushAction::Draw");
                 if !quads.is_empty() {
                     self.generate_geometry(&quads);
                     self.create_buffers();
                     self.draw_impl(render_pass);
-                    log::debug!("Text render: {} glyphs drawn", quads.len());
+                    log::info!("Text render: {} glyphs drawn", quads.len());
+                } else {
+                    log::warn!("Text render: Draw action but no quads!");
                 }
             }
             Ok(BrushAction::ReDraw) => {
+                log::info!("Text render: BrushAction::ReDraw");
                 if self.vertex_buffer.is_none() && !quads.is_empty() {
                     self.generate_geometry(&quads);
                     self.create_buffers();
                 }
                 if self.vertex_buffer.is_some() {
                     self.draw_impl(render_pass);
-                    log::debug!("Text render: redrawn (cached geometry)");
+                    log::info!("Text render: redrawn (cached geometry)");
+                } else {
+                    log::warn!("Text render: No vertex buffer to redraw!");
                 }
             }
             Err(glyph_brush::BrushError::TextureTooSmall { suggested }) => {
                 log::error!("Atlas too small! Suggested: {:?}. Skipping frame.", suggested);
                 return Ok(());
+            }
+            other => {
+                log::error!("Text render: Unexpected brush action: {:?}", other);
             }
         }
 

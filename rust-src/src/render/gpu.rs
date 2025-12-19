@@ -155,6 +155,12 @@ impl GpuContext {
 
     /// Render a frame to the window with current AppData
     pub fn render_frame(&mut self, app_data: &AppData) -> AppResult<()> {
+        static FRAME_COUNT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+        let frame_num = FRAME_COUNT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        if frame_num % 30 == 0 {
+            log::info!("📊 render_frame() called - frame {}", frame_num);
+        }
+
         // Get current frame texture
         let frame = self.surface
             .get_current_texture()
@@ -165,6 +171,14 @@ impl GpuContext {
         // Get current time and space weather data
         let now = chrono::Local::now();
         let time_str = now.format("%H:%M:%S").to_string();
+
+        // TEST: Add simple hardcoded text to verify rendering works
+        self.text_renderer.queue_text(
+            "TEST: Text Rendering Works!",
+            [50.0, 100.0],
+            32.0,
+            [1.0, 1.0, 1.0, 1.0],
+        );
 
         // Queue UI elements for rendering
         self.queue_ui_elements(app_data, self.config.width, self.config.height)?;
@@ -412,29 +426,30 @@ impl GpuContext {
             alert_y_offset += 28.0;
         }
 
-        // Display active layers (Phase 11)
+        // Display active layers (Phase 11) - TEMPORARILY DISABLED FOR DEBUGGING
+        // TODO: Fix layer display positioning logic
+        /*
         let visible_layers = self.layers.visible_layers();
-        if visible_layers.len() > 1 {  // More than just base map
-            let mut layer_y = width as f32 - 200.0;  // Right side
+        if visible_layers.len() > 1 {
+            let layer_y_start = (width as f32) - 200.0;
             self.text_renderer.queue_text(
-                "Active Layers:",
-                [layer_y, _height as f32 - 80.0],
+                "Layers:",
+                [layer_y_start, (_height as f32) - 80.0],
                 12.0,
                 [0.7, 0.7, 0.7, 1.0],
             );
-            layer_y -= 80.0;
-            for layer in visible_layers {
+            for (idx, layer) in visible_layers.iter().enumerate() {
                 if layer.layer_type != crate::render::LayerType::BaseMap {
                     self.text_renderer.queue_text(
-                        &format!("  {} ({})", layer.layer_type.name(), layer.layer_type.keyboard_shortcut()),
-                        [layer_y, _height as f32 - 60.0],
+                        &format!("  {}", layer.layer_type.name()),
+                        [layer_y_start, (_height as f32) - 100.0 - (idx as f32 * 15.0)],
                         10.0,
                         [1.0, 1.0, 1.0, 0.8],
                     );
-                    layer_y -= 15.0;
                 }
             }
         }
+        */
 
         log::debug!("UI elements queued for rendering");
         Ok(())

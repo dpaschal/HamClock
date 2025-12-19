@@ -222,9 +222,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 }
                             }
                             WindowEvent::RedrawRequested => {
-                                // Rendering is handled by AboutToWait timer to avoid
-                                // lifetime issues with GPU context in event loop closure
-                                log::debug!("Redraw requested (handled by timer)");
+                                // Render the frame
+                                if let Some(gpu_ctx) = &mut gpu {
+                                    let data_clone = Arc::clone(&app_data);
+                                    let data = tokio::task::block_in_place(|| {
+                                        tokio::runtime::Handle::current().block_on(async {
+                                            data_clone.lock().await
+                                        })
+                                    });
+                                    if let Err(e) = gpu_ctx.render_frame(&data) {
+                                        log::error!("Render error: {}", e);
+                                    }
+                                }
                             }
                             _ => {}
                         }
