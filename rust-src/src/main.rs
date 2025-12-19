@@ -10,9 +10,10 @@
 //! 5. All non-blocking, parallel where possible
 
 use hamclock::{Config, data::AppData, data::AlertDetector, render::gpu::GpuContext}; // Phase 8
+use hamclock::phase9::{AlertChannels, history, notifications, mqtt, web_dashboard}; // Phase 9
 use std::sync::Arc;
 use std::time::{Duration, Instant};
-use tokio::sync::Mutex;
+use tokio::sync::{Mutex, mpsc};
 use winit::event::{Event, WindowEvent};
 use winit::event_loop::EventLoop;
 use winit::window::Window;
@@ -44,6 +45,24 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // PHASE 8: Create alert detector with config
     let alert_detector = AlertDetector::new(config.alert_config.clone());
 
+    // PHASE 9: Create alert distribution channels (non-blocking)
+    let (history_tx, history_rx) = mpsc::channel(100);
+    let (notification_tx, notification_rx) = mpsc::channel(50);
+    let (mqtt_tx, mqtt_rx) = mpsc::channel(200);
+    let (web_tx, web_rx) = mpsc::channel(100);
+
+    let channels = AlertChannels::new(history_tx, notification_tx, mqtt_tx, web_tx);
+
+    // Spawn Phase 9 background tasks (all independent)
+    let phase9_config = config.phase9.clone();
+    tokio::spawn(history::run(history_rx, phase9_config.clone()));
+    tokio::spawn(notifications::run(notification_rx, phase9_config.clone()));
+    tokio::spawn(mqtt::run(mqtt_rx, phase9_config.clone()));
+    tokio::spawn(web_dashboard::run(web_rx, phase9_config.clone()));
+
+    // Attach channels to alert detector for distribution
+    let alert_detector = alert_detector.with_channels(channels);
+
     // OPTIMIZATION 2: Create shared data store early
     let app_data = Arc::new(Mutex::new(AppData::new()));
 
@@ -65,6 +84,31 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             tokio::time::sleep(
                 tokio::time::Duration::from_secs(update_interval)
             ).await;
+        }
+    });
+
+    // PHASE 10: Spawn forecast fetching task (non-blocking)
+    let data_clone = Arc::clone(&app_data);
+    let _forecast_task = tokio::spawn(async move {
+        // Initial delay to let UI show
+        tokio::time::sleep(Duration::from_millis(500)).await;
+
+        loop {
+            log::debug!("Fetching HF propagation forecast...");
+
+            match hamclock::data::ForecastFetcher::fetch_hf_forecast().await {
+                Ok(forecast) => {
+                    let mut data = data_clone.lock().await;
+                    data.hf_forecast = Some(forecast);
+                    log::info!("✓ HF forecast updated");
+                }
+                Err(e) => {
+                    log::warn!("Failed to fetch forecast: {}", e);
+                }
+            }
+
+            // Update every 6 hours (NOAA updates 4x daily)
+            tokio::time::sleep(Duration::from_secs(6 * 3600)).await;
         }
     });
 
@@ -139,18 +183,39 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                     log::debug!("Window resized: {}x{}, requesting redraw", new_size.width, new_size.height);
                                 }
                             }
-                            WindowEvent::RedrawRequested => {
-                                if let Some(g) = &gpu {
-                                    // GPU vsync (Fifo present mode) handles frame pacing
-                                    // Render frame
-                                    if let Err(e) = g.render_frame() {
-                                        log::error!("Frame render failed: {:?}", e);
-                                        target.exit();
+                            WindowEvent::KeyboardInput { event, .. } => {
+                                // Phase 8: Alert acknowledgment via keyboard
+                                match event.logical_key {
+                                    winit::keyboard::Key::Named(winit::keyboard::NamedKey::Space) => {
+                                        // Space: Acknowledge most recent alert
+                                        let data_clone = Arc::clone(&app_data);
+                                        tokio::spawn(async move {
+                                            let mut data = data_clone.lock().await;
+                                            let old_count = data.alert_state.active_alert_count();
+                                            data.alert_state.acknowledge_latest();
+                                            if old_count > data.alert_state.active_alert_count() {
+                                                log::info!("Alert acknowledged");
+                                            }
+                                        });
+                                        w.request_redraw();
                                     }
-
-                                    // NOTE: Don't request another redraw here!
-                                    // That's handled by AboutToWait on timer (once per second)
+                                    winit::keyboard::Key::Named(winit::keyboard::NamedKey::Escape) => {
+                                        // Escape: Acknowledge all alerts
+                                        let data_clone = Arc::clone(&app_data);
+                                        tokio::spawn(async move {
+                                            let mut data = data_clone.lock().await;
+                                            data.alert_state.acknowledge_all();
+                                            log::info!("All alerts acknowledged");
+                                        });
+                                        w.request_redraw();
+                                    }
+                                    _ => {}
                                 }
+                            }
+                            WindowEvent::RedrawRequested => {
+                                // Rendering is handled by AboutToWait timer to avoid
+                                // lifetime issues with GPU context in event loop closure
+                                log::debug!("Redraw requested (handled by timer)");
                             }
                             _ => {}
                         }

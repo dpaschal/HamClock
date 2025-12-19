@@ -127,6 +127,9 @@ pub struct AlertState {
     pub last_dx_spots: Vec<String>,
     pub last_satellite_elevations: HashMap<String, f32>,
     pub last_xray_class: String,
+    pub last_flux: i32,          // Phase 8: CME detection - track flux changes
+    pub last_ap: i32,            // Phase 8: CME detection - track AP index changes
+    pub last_acknowledged_id: String, // Phase 8: Alert acknowledgment tracking
 }
 
 impl AlertState {
@@ -149,17 +152,60 @@ impl AlertState {
             self.active_alerts.push(alert);
         }
     }
+
+    /// Acknowledge the most recent active alert (dismiss it)
+    pub fn acknowledge_latest(&mut self) {
+        // Find the most recent non-acknowledged active alert
+        if let Some(alert) = self.active_alerts.iter_mut()
+            .filter(|a| a.is_active() && !a.acknowledged)
+            .max_by_key(|a| a.created_at)
+        {
+            alert.acknowledged = true;
+            self.last_acknowledged_id = alert.id.clone();
+        }
+    }
+
+    /// Acknowledge all active alerts
+    pub fn acknowledge_all(&mut self) {
+        for alert in &mut self.active_alerts {
+            if alert.is_active() && !alert.acknowledged {
+                alert.acknowledged = true;
+            }
+        }
+    }
+
+    /// Get count of active unacknowledged alerts
+    pub fn active_alert_count(&self) -> usize {
+        self.active_alerts.iter()
+            .filter(|a| a.is_active() && !a.acknowledged)
+            .count()
+    }
 }
 
 /// Combined application data state
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct AppData {
     pub space_weather: SpaceWeather,
     pub forecast: Vec<Forecast>,
+    pub hf_forecast: Option<super::forecast::HfForecast>, // Phase 10
     pub dx_spots: Vec<DxSpot>,
     pub satellites: Vec<SatelliteData>,
     pub last_update: DateTime<Utc>,
     pub alert_state: AlertState, // Phase 8
+}
+
+impl Default for AppData {
+    fn default() -> Self {
+        Self {
+            space_weather: SpaceWeather::default(),
+            forecast: Vec::new(),
+            hf_forecast: None,
+            dx_spots: Vec::new(),
+            satellites: Vec::new(),
+            last_update: Utc::now(),
+            alert_state: AlertState::new(),
+        }
+    }
 }
 
 impl AppData {

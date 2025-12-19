@@ -35,7 +35,8 @@ impl MainWindow {
 
     /// Render a frame
     pub async fn render_frame(&mut self) -> AppResult<()> {
-        self.gpu.render_frame()
+        let data = self.data.lock().await;
+        self.gpu.render_frame(&data)
     }
 
     /// Get window dimensions

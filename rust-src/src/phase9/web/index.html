@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HamClock Alert Dashboard</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Courier New', monospace;
+            background: #000;
+            color: #0f0;
+            padding: 20px;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            text-align: center;
+            margin-bottom: 20px;
+            font-size: 2em;
+            text-shadow: 0 0 10px #0f0;
+        }
+
+        .status {
+            text-align: center;
+            margin-bottom: 20px;
+            font-size: 0.9em;
+        }
+
+        .status.connected {
+            color: #0f0;
+        }
+
+        .status.disconnected {
+            color: #f00;
+        }
+
+        #alerts-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+            gap: 10px;
+            margin-top: 20px;
+        }
+
+        .alert {
+            border: 2px solid #0f0;
+            padding: 12px;
+            border-radius: 4px;
+            animation: slideIn 0.3s ease-out;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .alert.info {
+            border-color: #0099ff;
+            color: #0099ff;
+        }
+
+        .alert.notice {
+            border-color: #ffff00;
+            color: #ffff00;
+        }
+
+        .alert.warning {
+            border-color: #ffaa00;
+            color: #ffaa00;
+        }
+
+        .alert.critical {
+            border-color: #ff0000;
+            color: #ff0000;
+        }
+
+        .alert.emergency {
+            border-color: #ff00ff;
+            color: #ff00ff;
+            animation: pulse 1s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+
+        .alert-type {
+            font-weight: bold;
+            font-size: 1.1em;
+            margin-bottom: 5px;
+        }
+
+        .alert-message {
+            font-size: 0.95em;
+            margin-bottom: 5px;
+            word-wrap: break-word;
+        }
+
+        .alert-time {
+            font-size: 0.8em;
+            opacity: 0.7;
+        }
+
+        .alert-count {
+            text-align: center;
+            margin-top: 20px;
+            font-size: 0.9em;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>⚡ HamClock Alert Dashboard</h1>
+        <div class="status disconnected" id="status">Connecting...</div>
+        <div id="alerts-container"></div>
+        <div class="alert-count" id="alert-count">No alerts yet</div>
+    </div>
+
+    <script>
+        const alertsContainer = document.getElementById('alerts-container');
+        const statusDiv = document.getElementById('status');
+        const alertCountDiv = document.getElementById('alert-count');
+        let alertCount = 0;
+
+        // Determine WebSocket URL
+        const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
+        const wsUrl = `${protocol}://${window.location.host}/ws`;
+
+        // Create WebSocket connection
+        const ws = new WebSocket(wsUrl);
+
+        ws.onopen = () => {
+            statusDiv.className = 'status connected';
+            statusDiv.textContent = '✓ Connected';
+        };
+
+        ws.onclose = () => {
+            statusDiv.className = 'status disconnected';
+            statusDiv.textContent = '✗ Disconnected - Attempting to reconnect...';
+            // Attempt to reconnect after 3 seconds
+            setTimeout(() => {
+                window.location.reload();
+            }, 3000);
+        };
+
+        ws.onerror = (error) => {
+            console.error('WebSocket error:', error);
+            statusDiv.className = 'status disconnected';
+            statusDiv.textContent = '✗ Connection Error';
+        };
+
+        ws.onmessage = (event) => {
+            try {
+                const alert = JSON.parse(event.data);
+                displayAlert(alert);
+            } catch (e) {
+                console.error('Failed to parse alert:', e);
+            }
+        };
+
+        function displayAlert(alert) {
+            alertCount++;
+
+            // Create alert element
+            const alertDiv = document.createElement('div');
+            alertDiv.className = `alert ${alert.severity.toLowerCase()}`;
+
+            const createdTime = new Date(alert.created_at);
+            const timeStr = createdTime.toLocaleTimeString();
+
+            alertDiv.innerHTML = `
+                <div class="alert-type">${alert.type}</div>
+                <div class="alert-message">${escapeHtml(alert.message)}</div>
+                <div class="alert-time">${timeStr}</div>
+            `;
+
+            // Insert at the beginning (most recent first)
+            alertsContainer.insertBefore(alertDiv, alertsContainer.firstChild);
+
+            // Remove old alerts if too many (keep last 100)
+            while (alertsContainer.children.length > 100) {
+                alertsContainer.removeChild(alertsContainer.lastChild);
+            }
+
+            // Update count
+            updateAlertCount();
+
+            // Play sound effect if critical
+            if (alert.severity === 'Critical' || alert.severity === 'Emergency') {
+                playAlert();
+            }
+        }
+
+        function updateAlertCount() {
+            const count = alertsContainer.children.length;
+            alertCountDiv.textContent = `Showing ${count} alert${count !== 1 ? 's' : ''}`;
+        }
+
+        function escapeHtml(text) {
+            const map = {
+                '&': '&amp;',
+                '<': '&lt;',
+                '>': '&gt;',
+                '"': '&quot;',
+                "'": '&#039;'
+            };
+            return text.replace(/[&<>"']/g, m => map[m]);
+        }
+
+        function playAlert() {
+            // Create a simple beep sound using Web Audio API
+            try {
+                const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                const oscillator = audioContext.createOscillator();
+                const gainNode = audioContext.createGain();
+
+                oscillator.connect(gainNode);
+                gainNode.connect(audioContext.destination);
+
+                oscillator.frequency.value = 800;
+                oscillator.type = 'sine';
+
+                gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.5);
+
+                oscillator.start(audioContext.currentTime);
+                oscillator.stop(audioContext.currentTime + 0.5);
+            } catch (e) {
+                console.log('Audio not available');
+            }
+        }
+    </script>
+</body>
+</html>

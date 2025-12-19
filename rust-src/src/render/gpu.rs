@@ -5,7 +5,7 @@ use winit::window::Window;
 use crate::AppResult;
 use crate::error::AppError;
 use crate::render::TextRenderer;
-use crate::data::models::{AppData, AuroraLevel};
+use crate::data::models::{AppData, AlertSeverity};
 use std::sync::Arc;
 use chrono::Timelike;
 
@@ -169,7 +169,7 @@ impl GpuContext {
 
         // Log time and space weather
         log::debug!("Clock: {} | Kp: {:.1} | Flux: {} SFU",
-                  time_str, app_data.space_weather.kp, app_data.space_weather.solar_flux);
+                  time_str, app_data.space_weather.kp, app_data.space_weather.flux);
 
         // Create command encoder
         let mut encoder = self.device.create_command_encoder(&CommandEncoderDescriptor {
@@ -181,6 +181,17 @@ impl GpuContext {
             let seconds = now.second() as f64 / 60.0;
             let color_variation = 0.05 + (seconds * 0.05);
 
+            // Phase 8: Background flash for critical alerts
+            let has_critical_alert = app_data.alert_state.active_alerts.iter()
+                .any(|a| a.is_active() && a.severity >= AlertSeverity::Critical);
+
+            let flash_intensity = if has_critical_alert {
+                let pulse = (now.timestamp_millis() % 2000) as f64 / 2000.0;
+                (pulse * std::f64::consts::PI).sin().abs() * 0.2
+            } else {
+                0.0
+            };
+
             let mut render_pass = encoder.begin_render_pass(&RenderPassDescriptor {
                 label: Some("Main Render Pass"),
                 color_attachments: &[Some(RenderPassColorAttachment {
@@ -188,7 +199,7 @@ impl GpuContext {
                     resolve_target: None,
                     ops: Operations {
                         load: LoadOp::Clear(Color {
-                            r: 0.05,
+                            r: 0.05 + flash_intensity,
                             g: 0.05,
                             b: 0.1 + color_variation,
                             a: 1.0,
@@ -247,7 +258,7 @@ impl GpuContext {
     }
 
     /// Queue UI elements for rendering (time, space weather, alerts)
-    fn queue_ui_elements(&mut self, app_data: &AppData, _width: u32, _height: u32) -> AppResult<()> {
+    fn queue_ui_elements(&mut self, app_data: &AppData, width: u32, height: u32) -> AppResult<()> {
         let now = chrono::Local::now();
         let time_str = now.format("%H:%M:%S").to_string();
 
@@ -270,7 +281,7 @@ impl GpuContext {
         );
 
         // Queue Solar Flux (right, cyan)
-        let flux_str = format!("Flux: {} SFU", app_data.space_weather.solar_flux);
+        let flux_str = format!("Flux: {} SFU", app_data.space_weather.flux);
         self.text_renderer.queue_text(
             &flux_str,
             [400.0, 150.0],
@@ -278,30 +289,28 @@ impl GpuContext {
             [0.0, 1.0, 1.0, 1.0],  // Cyan
         );
 
-        // Queue CME alerts if present (red, high priority)
-        if !app_data.space_weather.active_cmes.is_empty() {
-            let cme = &app_data.space_weather.active_cmes[0];
-            let alert_str = format!("⚠ CME ALERT: {} km/s", cme.speed as i32);
-            self.text_renderer.queue_text(
-                &alert_str,
-                [50.0, 220.0],
-                24.0,
-                [1.0, 0.0, 0.0, 1.0],  // Red
-            );
-        }
-
-        // Queue Aurora forecast (color-coded by intensity)
-        let aurora_str = format!("Aurora: {:?}", app_data.space_weather.aurora_activity);
-        let aurora_color = self.aurora_color(&app_data.space_weather.aurora_activity);
+        // Queue Aurora forecast based on Kp index
+        let aurora_status = match app_data.space_weather.kp {
+            k if k >= 8.0 => "Aurora: STRONG",
+            k if k >= 6.0 => "Aurora: VISIBLE",
+            k if k >= 5.0 => "Aurora: POSSIBLE",
+            _ => "Aurora: UNLIKELY",
+        };
+        let aurora_color = match app_data.space_weather.kp {
+            k if k >= 8.0 => [1.0, 0.0, 1.0, 1.0],  // Magenta for strong
+            k if k >= 6.0 => [0.0, 1.0, 1.0, 1.0],  // Cyan for visible
+            k if k >= 5.0 => [1.0, 1.0, 0.0, 1.0],  // Yellow for possible
+            _ => [0.5, 0.5, 0.5, 1.0],               // Gray for unlikely
+        };
         self.text_renderer.queue_text(
-            &aurora_str,
+            aurora_status,
             [50.0, 280.0],
             20.0,
             aurora_color,
         );
 
-        // Queue geomagnetic status (bottom, white)
-        let status_str = format!("Status: {}", app_data.space_weather.geomag_status);
+        // Queue geomagnetic status based on A-index (bottom, white)
+        let status_str = format!("A-Index: {}", app_data.space_weather.a);
         self.text_renderer.queue_text(
             &status_str,
             [50.0, 400.0],
@@ -339,6 +348,40 @@ impl GpuContext {
             );
         }
 
+        // Queue 3-day forecast (Phase 10) - band status display
+        if let Some(forecast) = &app_data.hf_forecast {
+            let mut forecast_y = 450.0;
+
+            // Title
+            self.text_renderer.queue_text(
+                "📊 Band Forecast (24h)",
+                [50.0, forecast_y],
+                16.0,
+                [1.0, 1.0, 0.0, 1.0], // Yellow title
+            );
+            forecast_y += 22.0;
+
+            // Show top 4 bands
+            for band_forecast in forecast.band_forecast.iter().take(4) {
+                let status_emoji = band_forecast.forecast_status.as_emoji();
+                let status_color = band_forecast.forecast_status.as_color();
+
+                let forecast_text = format!(
+                    "{} {}: {:.0} Mhz",
+                    status_emoji, band_forecast.band_name, band_forecast.frequency_mhz
+                );
+
+                self.text_renderer.queue_text(
+                    &forecast_text,
+                    [60.0, forecast_y],
+                    14.0,
+                    status_color,
+                );
+
+                forecast_y += 18.0;
+            }
+        }
+
         // Queue alerts (Phase 8) - render in top-right corner
         let mut alert_y_offset = 50.0;
         for alert in &app_data.alert_state.active_alerts {
@@ -355,7 +398,7 @@ impl GpuContext {
                 AlertSeverity::Emergency => [1.0, 0.0, 1.0, 1.0], // Magenta
             };
 
-            let x_pos = (_width as f32) - 600.0;
+            let x_pos = (width as f32) - 600.0;
 
             self.text_renderer.queue_text(
                 &alert.message,
@@ -379,17 +422,6 @@ impl GpuContext {
             k if k < 7.0 => [1.0, 0.65, 0.0, 1.0],     // Orange (active)
             k if k <= 9.0 => [1.0, 0.0, 0.0, 1.0],     // Red (storm)
             _ => [0.5, 0.0, 0.5, 1.0],                 // Purple (extreme)
-        }
-    }
-
-    /// Get color for aurora forecast based on intensity
-    fn aurora_color(&self, level: &AuroraLevel) -> [f32; 4] {
-        match level {
-            AuroraLevel::None => [0.5, 0.5, 0.5, 1.0],       // Gray
-            AuroraLevel::Low => [0.55, 0.0, 1.0, 1.0],       // Purple
-            AuroraLevel::Moderate => [0.0, 1.0, 1.0, 1.0],   // Cyan
-            AuroraLevel::High => [0.0, 1.0, 0.0, 1.0],       // Green
-            AuroraLevel::Extreme => [1.0, 0.0, 0.0, 1.0],    // Red
         }
     }
 }

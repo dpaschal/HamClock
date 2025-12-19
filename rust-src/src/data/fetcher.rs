@@ -1,8 +1,7 @@
 //! Async data fetcher using reqwest and tokio with response caching
 
 use crate::error::AppResult;
-use crate::data::models::{SpaceWeather, Forecast, DxSpot, SatelliteData, AppData,
-                        AuroraLevel, CmeEvent, CmeSeverity};
+use crate::data::models::{SpaceWeather, Forecast, DxSpot, SatelliteData, AppData};
 use crate::data::cache::ResponseCache;
 use crate::Config;
 use reqwest::Client;
@@ -212,8 +211,8 @@ impl DataFetcher {
         // Build comprehensive space weather from both sources
         let weather = self.build_space_weather(hamqsl, alerts)?;
 
-        log::info!("Space weather updated: Kp={:.1}, Flux={} SFU, Status={}",
-                  weather.kp, weather.solar_flux, weather.geomag_status);
+        log::info!("Space weather updated: Kp={:.1}, Flux={} SFU, A-Index={}",
+                  weather.kp, weather.flux, weather.a);
 
         // Cache the result with 15-minute TTL
         self.cache.cache_space_weather(weather.clone());
@@ -553,53 +552,24 @@ impl DataFetcher {
         // Parse X-ray class from string like "M2.4" or "X1.0"
         let xray_class = data.xray.clone();
 
-        // Create placeholder aurora activity based on Kp index
-        let aurora = AuroraLevel::from_kp(data.kindex);
-
-        // Create placeholder aurora visibility threshold
-        let aurora_visible_lat = match aurora {
-            AuroraLevel::None => None,
-            AuroraLevel::Low => Some(65.0),      // Far north
-            AuroraLevel::Moderate => Some(60.0),  // North
-            AuroraLevel::High => Some(50.0),      // Well south
-            AuroraLevel::Extreme => Some(35.0),   // Very far south
+        // Calculate aurora visibility latitude based on Kp index
+        // Higher Kp = aurora visible further south (lower latitude)
+        let _aurora_visible_lat = match data.kindex {
+            k if k >= 8.0 => Some(35.0),   // Extreme - very far south
+            k if k >= 6.0 => Some(50.0),   // High - well south
+            k if k >= 5.0 => Some(60.0),   // Moderate - north
+            k if k >= 3.0 => Some(65.0),   // Low - far north
+            _ => None,                      // None - not visible
         };
 
-        // Parse alerts for CME events
-        let active_cmes = alerts.iter()
-            .filter(|a| a.event.contains("CME") || a.event.contains("Solar Wind"))
-            .enumerate()
-            .map(|(idx, alert)| CmeEvent {
-                id: alert.id.clone().unwrap_or_else(|| format!("CME-{}", idx)),
-                detection_time: Utc::now(),
-                earth_directed: true,  // Assume earth-directed if alerted
-                speed: 1200.0,  // Placeholder average CME speed
-                estimated_arrival: None,
-                severity: match data.kindex {
-                    k if k > 8.0 => CmeSeverity::Extreme,
-                    k if k > 6.0 => CmeSeverity::Severe,
-                    k if k > 5.0 => CmeSeverity::Strong,
-                    k if k > 3.0 => CmeSeverity::Moderate,
-                    _ => CmeSeverity::Minor,
-                },
-            })
-            .collect();
+        // CME detection is handled in Phase 9 alert system using Kp and AP indices
+        // The active_cmes field would contain parsed CME event data if available
 
         let weather = SpaceWeather {
             kp: data.kindex,
             a: data.a as i32,
             ap: data.ap as i32,
-            solar_flux: data.solarflux,
-            sunspot_number: data.sunspots,
-            solar_wind_speed: data.windspeeds,
-            imf_bt: 0.0,  // Not provided by HamQSL
-            imf_bz: 0.0,  // Not provided by HamQSL
-            current_xray_class: xray_class,
-            recent_flares: vec![],  // Placeholder - would parse from HamQSL if available
-            aurora_activity: aurora,
-            aurora_visible_at: aurora_visible_lat,
-            active_cmes,
-            geomag_status: data.magnet.clone(),
+            flux: data.solarflux,
             updated: Utc::now(),
         };
 

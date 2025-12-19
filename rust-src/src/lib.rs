@@ -12,6 +12,8 @@ pub mod ui;
 pub mod config;
 pub mod error;
 pub mod startup;
+pub mod audio;
+pub mod phase9;
 
 // Re-export public API
 pub use config::Config;

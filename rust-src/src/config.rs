@@ -2,6 +2,60 @@
 
 use serde::{Deserialize, Serialize};
 use crate::AppResult;
+use std::path::PathBuf;
+use crate::data::models::AlertSeverity;
+
+/// Phase 9: Alert Extensions configuration
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Phase9Config {
+    // Alert History (SQLite)
+    pub history_enabled: bool,
+    pub history_db_path: PathBuf,
+    pub history_retention_days: u32,
+    pub history_max_entries: usize,
+
+    // Desktop Notifications
+    pub desktop_notifications_enabled: bool,
+    pub notification_timeout_seconds: u32,
+    pub notification_min_severity: AlertSeverity,
+
+    // MQTT Publishing
+    pub mqtt_enabled: bool,
+    pub mqtt_broker_url: String,
+    pub mqtt_client_id: String,
+    pub mqtt_topic_prefix: String,
+    pub mqtt_qos: u8,
+
+    // Web Dashboard
+    pub web_dashboard_enabled: bool,
+    pub web_dashboard_port: u16,
+    pub web_dashboard_host: String,
+}
+
+impl Default for Phase9Config {
+    fn default() -> Self {
+        Self {
+            history_enabled: true,
+            history_db_path: PathBuf::from("~/.hamclock/alerts.db"),
+            history_retention_days: 30,
+            history_max_entries: 10000,
+
+            desktop_notifications_enabled: false,
+            notification_timeout_seconds: 10,
+            notification_min_severity: AlertSeverity::Warning,
+
+            mqtt_enabled: false,
+            mqtt_broker_url: "mqtt://localhost:1883".to_string(),
+            mqtt_client_id: "hamclock".to_string(),
+            mqtt_topic_prefix: "hamclock/alerts".to_string(),
+            mqtt_qos: 1,
+
+            web_dashboard_enabled: false,
+            web_dashboard_port: 8080,
+            web_dashboard_host: "127.0.0.1".to_string(),
+        }
+    }
+}
 
 /// Alert configuration for Phase 8
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -96,6 +150,9 @@ pub struct Config {
 
     /// Phase 8: Alert configuration
     pub alert_config: AlertConfig,
+
+    /// Phase 9: Alert extensions configuration
+    pub phase9: Phase9Config,
 }
 
 impl Default for Config {
@@ -112,6 +169,7 @@ impl Default for Config {
             dx_cluster_host: "dxc.ve7cc.net".to_string(),
             dx_cluster_port: 23,
             alert_config: AlertConfig::default(),
+            phase9: Phase9Config::default(),
         }
     }
 }

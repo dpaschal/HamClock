@@ -4,15 +4,37 @@ use crate::data::models::{
     AppData, Alert, AlertType, AlertSeverity,
 };
 use crate::config::AlertConfig;
+use crate::audio::AudioAlerter;
+use crate::phase9::AlertChannels;
 
 #[derive(Clone)]
 pub struct AlertDetector {
     config: AlertConfig,
+    audio_alerter: AudioAlerter,
+    channels: Option<AlertChannels>,
 }
 
 impl AlertDetector {
     pub fn new(config: AlertConfig) -> Self {
-        Self { config }
+        let audio_alerter = AudioAlerter::new(config.audio_alerts_enabled);
+        Self {
+            config,
+            audio_alerter,
+            channels: None,
+        }
+    }
+
+    /// Attach Phase 9 alert channels for distribution
+    pub fn with_channels(mut self, channels: AlertChannels) -> Self {
+        self.channels = Some(channels);
+        self
+    }
+
+    /// Distribute alert to Phase 9 features
+    fn distribute_alert(&self, alert: Alert) {
+        if let Some(channels) = &self.channels {
+            channels.distribute(alert);
+        }
     }
 
     /// Main detection method - called periodically from background task
@@ -69,6 +91,12 @@ impl AlertDetector {
                     message,
                     self.config.alert_duration_seconds,
                 );
+
+                // Play audio alert
+                self.audio_alerter.play_alert(alert.severity);
+
+                // Distribute to Phase 9 features
+                self.distribute_alert(alert.clone());
 
                 app_data.alert_state.add_alert(alert);
                 app_data.alert_state.last_dx_spots.push(spot.callsign.clone());
@@ -127,6 +155,12 @@ impl AlertDetector {
                     self.config.alert_duration_seconds * 2,
                 );
 
+                // Play audio alert
+                self.audio_alerter.play_alert(alert.severity);
+
+                // Distribute to Phase 9 features
+                self.distribute_alert(alert.clone());
+
                 app_data.alert_state.add_alert(alert);
             }
         }
@@ -162,6 +196,12 @@ impl AlertDetector {
                 self.config.alert_duration_seconds,
             );
 
+            // Play audio alert
+            self.audio_alerter.play_alert(alert.severity);
+
+            // Distribute to Phase 9 features
+            self.distribute_alert(alert.clone());
+
             app_data.alert_state.add_alert(alert);
         }
         app_data.alert_state.last_kp = sw.kp;
@@ -196,6 +236,12 @@ impl AlertDetector {
                         self.config.alert_duration_seconds,
                     );
 
+                    // Play audio alert
+                    self.audio_alerter.play_alert(alert.severity);
+
+                    // Distribute to Phase 9 features
+                    self.distribute_alert(alert.clone());
+
                     app_data.alert_state.add_alert(alert);
                 }
             }
@@ -220,7 +266,50 @@ impl AlertDetector {
                 self.config.alert_duration_seconds,
             );
 
+            // Play audio alert
+            self.audio_alerter.play_alert(alert.severity);
+
+            // Distribute to Phase 9 features
+            self.distribute_alert(alert.clone());
+
             app_data.alert_state.add_alert(alert);
+        }
+
+        // Phase 8: CME detection based on solar wind and A-index rapid increase
+        if self.config.cme_alerts_enabled {
+            let flux_change = (sw.flux as i32 - app_data.alert_state.last_flux).abs();
+            let ap_change = (sw.ap - app_data.alert_state.last_ap).abs();
+
+            // Detect sudden increases in solar activity (indicators of CME)
+            // Threshold: >200 SFU flux increase or >100 AP increase
+            if flux_change > 200 || ap_change > 100 {
+                let severity = match (flux_change, ap_change) {
+                    (f, a) if f > 500 || a > 200 => AlertSeverity::Critical,
+                    (f, a) if f > 350 || a > 150 => AlertSeverity::Warning,
+                    _ => AlertSeverity::Notice,
+                };
+
+                let message = format!(
+                    "🌊 CME ALERT: Flux +{} SFU, AP +{} (possible coronal mass ejection)",
+                    flux_change, ap_change
+                );
+
+                let alert = Alert::new(
+                    AlertType::Cme,
+                    severity,
+                    message,
+                    self.config.alert_duration_seconds * 2, // CME alerts last twice as long
+                );
+
+                // Play audio alert (CME is always important)
+                self.audio_alerter.play_alert(alert.severity);
+
+                app_data.alert_state.add_alert(alert);
+            }
+
+            // Update tracked values
+            app_data.alert_state.last_flux = sw.flux as i32;
+            app_data.alert_state.last_ap = sw.ap;
         }
     }
 }

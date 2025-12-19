@@ -36,6 +36,18 @@ env_logger = "0.10"
 anyhow = "1.0"
 thiserror = "1.0"
 
+# Serialization
+serde-xml-rs = "0.6"
+
+# Phase 9: Alert Extensions
+rusqlite = { version = "0.31", features = ["bundled"] }
+notify-rust = "4.11"
+rumqttc = "0.24"
+axum = { version = "0.7", features = ["ws"] }
+tower = "0.4"
+tower-http = { version = "0.5", features = ["fs", "cors"] }
+shellexpand = "3.0"
+
 [profile.release]
 opt-level = 3
 lto = true
