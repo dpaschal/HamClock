@@ -280,11 +280,12 @@ impl TextRenderer {
             return Ok(());
         }
 
-        log::info!("Text render: Processing {} pending sections", self.pending_sections.len());
+        log::info!("Text render: Processing {} pending sections (bounds: {}x{})",
+                  self.pending_sections.len(), self.surface_width as i32, self.surface_height as i32);
 
         // Queue all pending text with glyph_brush
         for (text, position, size, color) in self.pending_sections.drain(..) {
-            log::debug!("Queueing text: '{}' at {:?}", text, position);
+            log::debug!("Queueing text: '{}' at [{:.1}, {:.1}] size {:.1}", text, position[0], position[1], size);
             let section = Section {
                 screen_position: (position[0], position[1]),
                 bounds: (self.surface_width, self.surface_height),
@@ -360,16 +361,21 @@ impl TextRenderer {
                 }
             }
             Ok(BrushAction::ReDraw) => {
-                log::info!("Text render: BrushAction::ReDraw");
-                if self.vertex_buffer.is_none() && !quads.is_empty() {
+                log::info!("Text render: BrushAction::ReDraw with {} quads", quads.len());
+                // IMPORTANT: Only regenerate geometry if we have NEW quads
+                // This ensures text changes are reflected while preserving cached geometry
+                if !quads.is_empty() {
                     self.generate_geometry(&quads);
                     self.create_buffers();
+                    log::info!("Text render: regenerated geometry for {} quads", quads.len());
+                } else {
+                    log::info!("Text render: using cached geometry (text unchanged)");
                 }
+                // Draw the geometry (either new or cached)
                 if self.vertex_buffer.is_some() {
                     self.draw_impl(render_pass);
-                    log::info!("Text render: redrawn (cached geometry)");
                 } else {
-                    log::warn!("Text render: No vertex buffer to redraw!");
+                    log::warn!("Text render: No vertex buffer to draw!");
                 }
             }
             Err(glyph_brush::BrushError::TextureTooSmall { suggested }) => {

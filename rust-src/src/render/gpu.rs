@@ -278,6 +278,8 @@ impl GpuContext {
         let now = chrono::Local::now();
         let time_str = now.format("%H:%M:%S").to_string();
 
+        log::info!("🎨 Queuing UI elements - time: {}", time_str);
+
         // Queue time display (top center, large, white)
         self.text_renderer.queue_text(
             &time_str,
@@ -285,6 +287,7 @@ impl GpuContext {
             72.0,           // Font size
             [1.0, 1.0, 1.0, 1.0],  // White
         );
+        log::info!("  ✓ Time queued");
 
         // Queue Kp-index (left, color-coded by intensity)
         let kp_str = format!("Kp: {:.1}", app_data.space_weather.kp);
@@ -295,6 +298,7 @@ impl GpuContext {
             36.0,
             kp_color,
         );
+        log::info!("  ✓ Kp queued: {}", kp_str);
 
         // Queue Solar Flux (right, cyan)
         let flux_str = format!("Flux: {} SFU", app_data.space_weather.flux);
@@ -304,6 +308,7 @@ impl GpuContext {
             36.0,
             [0.0, 1.0, 1.0, 1.0],  // Cyan
         );
+        log::info!("  ✓ Flux queued: {}", flux_str);
 
         // Queue Aurora forecast based on Kp index
         let aurora_status = match app_data.space_weather.kp {

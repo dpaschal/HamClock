@@ -241,14 +241,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
             }
             Event::AboutToWait => {
-                // OPTIMIZATION: Event-driven rendering
-                // Only redraw clock display once per second
+                // OPTIMIZATION: Request redraws at configured frame rate (60 FPS = ~16.7ms per frame)
                 let now = Instant::now();
-                if now.duration_since(last_update) >= Duration::from_secs(1) {
+                let frame_time = Duration::from_millis(1000 / 60); // 60 FPS = 16.67ms per frame
+                if now.duration_since(last_update) >= frame_time {
                     last_update = now;
                     if let Some(w) = &window {
                         w.request_redraw();
-                        log::debug!("Clock update: 1-second timer triggered redraw");
                     }
                 }
             }
