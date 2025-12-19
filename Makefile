@@ -28,8 +28,19 @@ ifeq ($(shell [ -r /opt/vc ]; echo $$?), 0)
     LIBS += -lbcm_host
 endif
 
+# Linux with libgpiod (Debian Trixie and newer)
+ifeq ($(shell [ -r /usr/include/gpiod.h ]; echo $$?), 0)
+    CXXFLAGS += -D_GPIO_LIBGPIOD
+    LIBS += -lgpiod
+else ifeq ($(shell [ -r /usr/local/include/gpiod.h ]; echo $$?), 0)
+    CXXFLAGS += -D_GPIO_LIBGPIOD -I/usr/local/include
+    LDXXFLAGS += -L/usr/local/lib
+    LIBS += -lgpiod
+endif
+
 # FreeBSD needs libgpio
 ifeq ($(shell [ -r /usr/include/libgpio.h ]; echo $$?), 0)
+    CXXFLAGS += -D_GPIO_FREEBSD
     LIBS += -lgpio
 endif
 
