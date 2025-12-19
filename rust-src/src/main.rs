@@ -255,6 +255,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                     }
                                 }
                             }
+                            // CRITICAL FIX: Handle mouse events to prevent render state corruption
+                            WindowEvent::CursorMoved { .. } |
+                            WindowEvent::MouseInput { .. } |
+                            WindowEvent::CursorEntered { .. } |
+                            WindowEvent::CursorLeft { .. } => {
+                                // Mouse events - just request redraw to ensure UI updates
+                                if let Some(w) = &window {
+                                    w.request_redraw();
+                                }
+                            }
                             _ => {}
                         }
                     }
