@@ -26,6 +26,15 @@ pub struct Config {
 
     /// Enable logging
     pub logging: bool,
+
+    /// Phase 7: N2YO API key for satellite tracking
+    pub n2yo_api_key: Option<String>,
+
+    /// Phase 7: DX Cluster host
+    pub dx_cluster_host: String,
+
+    /// Phase 7: DX Cluster port
+    pub dx_cluster_port: u16,
 }
 
 impl Default for Config {
@@ -38,6 +47,9 @@ impl Default for Config {
             gpio_enabled: false,
             gpu_backend: "vulkan".to_string(),
             logging: false,
+            n2yo_api_key: None,
+            dx_cluster_host: "dxc.ve7cc.net".to_string(),
+            dx_cluster_port: 23,
         }
     }
 }
