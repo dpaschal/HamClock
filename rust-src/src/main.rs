@@ -131,13 +131,24 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 // Create window and GPU context on resume
                 if window.is_none() {
                     log::info!("Creating window...");
-                    use winit::window::Window;
 
-                    // CRITICAL FIX: Create window with explicit attributes for Wayland compatibility
+                    // Create window - try with default first, then set focus explicitly
                     match Window::new(target) {
                         Ok(w) => {
                             log::info!("✓ Window created");
                             log::debug!("Window ID: {:?}", w.id());
+
+                            // CRITICAL: Force window to front and request focus on Linux
+                            #[cfg(target_os = "linux")]
+                            {
+                                w.focus_window();
+                                log::info!("✓ Window focus requested");
+
+                                // Try to force window to be visible by requesting redraw immediately
+                                w.request_redraw();
+                                log::info!("✓ Immediate redraw requested for visibility");
+                            }
+
                             let w = Arc::new(w);
 
                             // OPTIMIZATION: Measure GPU initialization time
