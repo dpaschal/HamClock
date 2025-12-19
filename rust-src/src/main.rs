@@ -209,6 +209,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                         });
                                         w.request_redraw();
                                     }
+                                    // Phase 11: Layer toggling via number keys (1-4)
+                                    winit::keyboard::Key::Character(c) => {
+                                        if let Some(gpu_ctx) = &mut gpu {
+                                            if let Some(is_visible) = gpu_ctx.layers.toggle_by_key(c.chars().next().unwrap_or(' ')) {
+                                                log::info!("Layer toggled: {}", is_visible);
+                                                w.request_redraw();
+                                            }
+                                        }
+                                    }
                                     _ => {}
                                 }
                             }

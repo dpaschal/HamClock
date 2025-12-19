@@ -18,6 +18,7 @@ pub struct GpuContext {
     pub format: TextureFormat,
     #[allow(dead_code)]
     text_renderer: TextRenderer, // Used in Phase C for text rendering
+    pub layers: crate::render::LayerManager, // Phase 11: Layer management
     _window: Arc<Window>, // Held to ensure window stays alive
 }
 
@@ -147,6 +148,7 @@ impl GpuContext {
             surface,
             format: surface_format,
             text_renderer,
+            layers: crate::render::LayerManager::new(),
             _window: window,
         })
     }
@@ -258,7 +260,7 @@ impl GpuContext {
     }
 
     /// Queue UI elements for rendering (time, space weather, alerts)
-    fn queue_ui_elements(&mut self, app_data: &AppData, width: u32, height: u32) -> AppResult<()> {
+    fn queue_ui_elements(&mut self, app_data: &AppData, width: u32, _height: u32) -> AppResult<()> {
         let now = chrono::Local::now();
         let time_str = now.format("%H:%M:%S").to_string();
 
@@ -408,6 +410,30 @@ impl GpuContext {
             );
 
             alert_y_offset += 28.0;
+        }
+
+        // Display active layers (Phase 11)
+        let visible_layers = self.layers.visible_layers();
+        if visible_layers.len() > 1 {  // More than just base map
+            let mut layer_y = width as f32 - 200.0;  // Right side
+            self.text_renderer.queue_text(
+                "Active Layers:",
+                [layer_y, _height as f32 - 80.0],
+                12.0,
+                [0.7, 0.7, 0.7, 1.0],
+            );
+            layer_y -= 80.0;
+            for layer in visible_layers {
+                if layer.layer_type != crate::render::LayerType::BaseMap {
+                    self.text_renderer.queue_text(
+                        &format!("  {} ({})", layer.layer_type.name(), layer.layer_type.keyboard_shortcut()),
+                        [layer_y, _height as f32 - 60.0],
+                        10.0,
+                        [1.0, 1.0, 1.0, 0.8],
+                    );
+                    layer_y -= 15.0;
+                }
+            }
         }
 
         log::debug!("UI elements queued for rendering");
