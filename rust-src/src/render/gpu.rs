@@ -215,9 +215,9 @@ impl GpuContext {
                     resolve_target: None,
                     ops: Operations {
                         load: LoadOp::Clear(Color {
-                            r: 0.05 + flash_intensity,
-                            g: 0.05,
-                            b: 0.1 + color_variation,
+                            r: 0.2 + flash_intensity,      // Brighter for visibility testing
+                            g: 0.2,
+                            b: 0.3 + color_variation,
                             a: 1.0,
                         }),
                         store: StoreOp::Store,
@@ -240,10 +240,21 @@ impl GpuContext {
         // Submit commands to GPU
         self.queue.submit(std::iter::once(encoder.finish()));
 
-        // Present to screen
-        frame.present();
+        log::debug!("GPU commands submitted");
 
-        Ok(())
+        // Present to screen
+        match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            frame.present();
+        })) {
+            Ok(_) => {
+                log::debug!("Frame presented to screen");
+                Ok(())
+            }
+            Err(e) => {
+                log::error!("Frame presentation panicked: {:?}", e);
+                Err(AppError::GpuError("Frame presentation failed".to_string()))
+            }
+        }
     }
 
     /// Resize the rendering surface

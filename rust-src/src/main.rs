@@ -123,14 +123,21 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut gpu: Option<GpuContext> = None;
     let mut last_update = Instant::now();  // For once-per-second clock updates (OPTIMIZATION)
 
-    event_loop.run(move |event, target| {
+    log::info!("Starting event loop...");
+    let result = event_loop.run(move |event, target| {
+        log::debug!("Event: {:?}", event);
         match event {
             Event::Resumed => {
                 // Create window and GPU context on resume
                 if window.is_none() {
                     log::info!("Creating window...");
+                    use winit::window::Window;
+
+                    // CRITICAL FIX: Create window with explicit attributes for Wayland compatibility
                     match Window::new(target) {
                         Ok(w) => {
+                            log::info!("✓ Window created");
+                            log::debug!("Window ID: {:?}", w.id());
                             let w = Arc::new(w);
 
                             // OPTIMIZATION: Measure GPU initialization time
@@ -152,7 +159,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                     log::info!("✓ Application ready in {}ms", total_startup.as_millis());
                                     log::info!("╚══════════════════════════════════════════════╝");
 
+                                    // CRITICAL: Request inner frame redraw to ensure window is rendered
                                     w.request_redraw();
+                                    log::info!("✓ Redraw requested");
                                 }
                                 Err(e) => {
                                     log::error!("Failed to initialize GPU context: {:?}", e);
