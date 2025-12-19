@@ -295,6 +295,170 @@ bool GPIO::readPin (uint8_t p)
 }
 
 
+#elif defined(_GPIO_LIBGPIOD)
+
+
+/************************************************************************************
+ *
+ * Linux libgpiod v2 implementation (Debian Trixie and newer)
+ *
+ ************************************************************************************/
+
+
+#include <stdio.h>
+#include <string.h>
+#include <unistd.h>
+
+
+/* constructor
+ * _GPIO_LIBGPIOD
+ */
+GPIO::GPIO()
+{
+        chip = NULL;
+        request = NULL;
+        ready = false;
+
+        // Try to open the default GPIO chip
+        chip = gpiod_chip_open("/dev/gpiochip0");
+        if (!chip) {
+            printf("GPIO: Unable to open /dev/gpiochip0: %s\n", strerror(errno));
+            return;
+        }
+
+        ready = true;
+
+        // init lock for safe threaded access
+        pthread_mutexattr_t lock_attr;
+        pthread_mutexattr_init(&lock_attr);
+        pthread_mutexattr_settype(&lock_attr, PTHREAD_MUTEX_RECURSIVE);
+        pthread_mutex_init(&lock, &lock_attr);
+}
+
+
+/* return reference to the one shared instance
+ * _GPIO_LIBGPIOD
+ */
+GPIO& GPIO::getGPIO()
+{
+        static GPIO the_one;
+        return the_one;
+}
+
+
+/* return whether GPIO is suitable for use
+ * _GPIO_LIBGPIOD
+ */
+bool GPIO::isReady()
+{
+        return (ready);
+}
+
+
+/* _GPIO_LIBGPIOD
+ */
+void GPIO::setAsInput(uint8_t p)
+{
+        if (!ready)
+            return;
+
+        pthread_mutex_lock(&lock);
+
+        struct gpiod_request_config *req_cfg = gpiod_request_config_new();
+        gpiod_request_config_add_line_by_offset(req_cfg, p);
+        gpiod_request_config_set_consumer(req_cfg, "hamclock-input");
+
+        if (request)
+            gpiod_line_request_release(request);
+
+        request = gpiod_chip_request_lines(chip, req_cfg);
+        gpiod_request_config_free(req_cfg);
+
+        pthread_mutex_unlock(&lock);
+}
+
+
+/* _GPIO_LIBGPIOD
+ */
+void GPIO::setAsOutput(uint8_t p)
+{
+        if (!ready)
+            return;
+
+        pthread_mutex_lock(&lock);
+
+        struct gpiod_request_config *req_cfg = gpiod_request_config_new();
+        gpiod_request_config_add_line_by_offset(req_cfg, p);
+        gpiod_request_config_set_consumer(req_cfg, "hamclock-output");
+        struct gpiod_line_config *line_cfg = gpiod_line_config_new();
+        gpiod_line_config_set_direction_output(line_cfg, p);
+        gpiod_request_config_set_line_config(req_cfg, line_cfg);
+
+        if (request)
+            gpiod_line_request_release(request);
+
+        request = gpiod_chip_request_lines(chip, req_cfg);
+        gpiod_line_config_free(line_cfg);
+        gpiod_request_config_free(req_cfg);
+
+        pthread_mutex_unlock(&lock);
+}
+
+
+/* _GPIO_LIBGPIOD
+ */
+void GPIO::setHi(uint8_t p)
+{
+        if (!ready || !request)
+            return;
+
+        pthread_mutex_lock(&lock);
+        gpiod_line_request_set_value(request, p, 1);
+        pthread_mutex_unlock(&lock);
+}
+
+
+/* _GPIO_LIBGPIOD
+ */
+void GPIO::setLo(uint8_t p)
+{
+        if (!ready || !request)
+            return;
+
+        pthread_mutex_lock(&lock);
+        gpiod_line_request_set_value(request, p, 0);
+        pthread_mutex_unlock(&lock);
+}
+
+
+/* _GPIO_LIBGPIOD
+ */
+void GPIO::setHiLo(uint8_t p, bool hi)
+{
+        if (!ready || !request)
+            return;
+
+        pthread_mutex_lock(&lock);
+        gpiod_line_request_set_value(request, p, hi ? 1 : 0);
+        pthread_mutex_unlock(&lock);
+}
+
+
+/* _GPIO_LIBGPIOD
+ */
+bool GPIO::readPin(uint8_t p)
+{
+        if (!ready || !request)
+            return false;
+
+        pthread_mutex_lock(&lock);
+        int val = gpiod_line_request_get_value(request, p);
+        pthread_mutex_unlock(&lock);
+
+        return (val == 1);
+}
+
+
 #else
 
 

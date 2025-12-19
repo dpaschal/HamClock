@@ -19,6 +19,10 @@
 #include <libgpio.h>
 #endif
 
+#if defined(_GPIO_LIBGPIOD)
+#include <gpiod.h>
+#endif
+
 class GPIO {
 
     public:
@@ -62,6 +66,13 @@ class GPIO {
         bool ready;
         pthread_mutex_t lock;
         gpio_handle_t handle;
+
+#elif defined(_GPIO_LIBGPIOD)
+
+        bool ready;
+        pthread_mutex_t lock;
+        struct gpiod_chip *chip;
+        struct gpiod_line_request *request;
 
 #endif
 
