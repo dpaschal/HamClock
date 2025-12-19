@@ -67,13 +67,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // OPTIMIZATION 4: Show window immediately (GPU init happens in Resumed event)
     let event_loop = EventLoop::new()?;
-    let target_fps = config.target_fps as u32;
-    let target_frame_duration = Duration::from_secs_f64(1.0 / target_fps as f64);
+    let _target_fps = config.target_fps as u32;
 
     // Shared state for event loop
     let mut window: Option<Arc<Window>> = None;
     let mut gpu: Option<GpuContext> = None;
-    let mut last_frame_time = Instant::now();
+    let mut last_update = Instant::now();  // For once-per-second clock updates (OPTIMIZATION)
 
     event_loop.run(move |event, target| {
         match event {
@@ -97,7 +96,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
                                     window = Some(w.clone());
                                     gpu = Some(g);
-                                    last_frame_time = Instant::now();
+                                    last_update = Instant::now();
 
                                     // Log total startup time since application started
                                     let total_startup = startup_start.elapsed();
@@ -130,25 +129,22 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             WindowEvent::Resized(new_size) => {
                                 if let Some(g) = &mut gpu {
                                     let _ = g.resize((new_size.width, new_size.height));
+                                    // Redraw immediately on resize
+                                    w.request_redraw();
+                                    log::debug!("Window resized: {}x{}, requesting redraw", new_size.width, new_size.height);
                                 }
                             }
                             WindowEvent::RedrawRequested => {
                                 if let Some(g) = &gpu {
-                                    // Frame timing
-                                    let elapsed = last_frame_time.elapsed();
-                                    if elapsed < target_frame_duration {
-                                        std::thread::sleep(target_frame_duration - elapsed);
-                                    }
-                                    last_frame_time = Instant::now();
-
+                                    // GPU vsync (Fifo present mode) handles frame pacing
                                     // Render frame
                                     if let Err(e) = g.render_frame() {
                                         log::error!("Frame render failed: {:?}", e);
                                         target.exit();
                                     }
 
-                                    // Request next frame
-                                    w.request_redraw();
+                                    // NOTE: Don't request another redraw here!
+                                    // That's handled by AboutToWait on timer (once per second)
                                 }
                             }
                             _ => {}
@@ -157,8 +153,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
             }
             Event::AboutToWait => {
-                if let Some(w) = &window {
-                    w.request_redraw();
+                // OPTIMIZATION: Event-driven rendering
+                // Only redraw clock display once per second
+                let now = Instant::now();
+                if now.duration_since(last_update) >= Duration::from_secs(1) {
+                    last_update = now;
+                    if let Some(w) = &window {
+                        w.request_redraw();
+                        log::debug!("Clock update: 1-second timer triggered redraw");
+                    }
                 }
             }
             _ => {}

@@ -16,6 +16,27 @@ pub struct GpuContext {
     _window: Arc<Window>, // Held to ensure window stays alive
 }
 
+/// OPTIMIZATION: Select GPU present mode for power efficiency
+/// Prioritizes vsync (Fifo) for low idle CPU usage
+fn select_present_mode(available: &[PresentMode]) -> PresentMode {
+    use PresentMode::*;
+
+    // Priority: Fifo (vsync, power efficient) > AutoVsync > FifoRelaxed > fallback
+    if available.contains(&Fifo) {
+        log::debug!("GPU: Using PresentMode::Fifo (vsync, power efficient)");
+        Fifo
+    } else if available.contains(&AutoVsync) {
+        log::debug!("GPU: Using PresentMode::AutoVsync (platform vsync)");
+        AutoVsync
+    } else if available.contains(&FifoRelaxed) {
+        log::debug!("GPU: Using PresentMode::FifoRelaxed (adaptive sync)");
+        FifoRelaxed
+    } else {
+        log::warn!("GPU: Preferred present modes unavailable, using first available: {:?}", available[0]);
+        available[0]
+    }
+}
+
 impl GpuContext {
     /// Create GPU context and initialize surface with window
     pub async fn new(window: Arc<Window>) -> AppResult<Self> {
@@ -81,13 +102,14 @@ impl GpuContext {
         let width = size.width.max(1);
         let height = size.height.max(1);
 
-        // Configure surface
+        // Configure surface with explicit present mode for power efficiency
+        let present_mode = select_present_mode(&surface_caps.present_modes);
         let config = SurfaceConfiguration {
             usage: TextureUsages::RENDER_ATTACHMENT,
             format: surface_format,
             width,
             height,
-            present_mode: surface_caps.present_modes[0],
+            present_mode,
             alpha_mode: surface_caps.alpha_modes[0],
             view_formats: vec![],
             desired_maximum_frame_latency: 2,
