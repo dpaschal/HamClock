@@ -294,6 +294,12 @@ bool GPIO::readPin (uint8_t p)
         return (s);
 }
 
+void GPIO::setErrorHandler(GPIO_ErrorCallback handler)
+{
+        // FreeBSD implementation doesn't use error callbacks
+        // This is a no-op for compatibility with optimized version
+}
+
 
 #elif defined(_GPIO_LIBGPIOD)
 
@@ -308,6 +314,8 @@ bool GPIO::readPin (uint8_t p)
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
+#include <errno.h>
+#include <gpiod.h>
 
 
 /* constructor
@@ -316,23 +324,45 @@ bool GPIO::readPin (uint8_t p)
 GPIO::GPIO()
 {
         chip = NULL;
-        request = NULL;
+        inputRequest = NULL;
+        outputRequest = NULL;
+        inputConfig = NULL;
+        outputConfig = NULL;
         ready = false;
+        errorHandler = NULL;
+        pinStateCache = 0;
+        pinOutputCache = 0;
+        cacheValid = false;
+
+        // Initialize pin registry
+        for (int i = 0; i < MAX_GPIO_PINS; i++) {
+            pinRegistry[i].configured = false;
+            pinRegistry[i].isOutput = false;
+        }
 
         // Try to open the default GPIO chip
         chip = gpiod_chip_open("/dev/gpiochip0");
         if (!chip) {
-            printf("GPIO: Unable to open /dev/gpiochip0: %s\n", strerror(errno));
+            reportError("Unable to open /dev/gpiochip0");
             return;
         }
 
         ready = true;
 
-        // init lock for safe threaded access
-        pthread_mutexattr_t lock_attr;
-        pthread_mutexattr_init(&lock_attr);
-        pthread_mutexattr_settype(&lock_attr, PTHREAD_MUTEX_RECURSIVE);
-        pthread_mutex_init(&lock, &lock_attr);
+        // init read-write lock for better concurrency
+        pthread_rwlockattr_t lock_attr;
+        pthread_rwlockattr_init(&lock_attr);
+        pthread_rwlock_init(&lock, &lock_attr);
+        pthread_rwlockattr_destroy(&lock_attr);
+
+        // Create reusable config objects
+        inputConfig = gpiod_request_config_new();
+        outputConfig = gpiod_request_config_new();
+
+        if (!inputConfig || !outputConfig) {
+            reportError("Failed to allocate request configs");
+            ready = false;
+        }
 }
 
 
@@ -355,107 +385,270 @@ bool GPIO::isReady()
 }
 
 
-/* _GPIO_LIBGPIOD
+/* _GPIO_LIBGPIOD - Optimized: Mark pin for input without immediate reconfiguration
  */
 void GPIO::setAsInput(uint8_t p)
 {
-        if (!ready)
+        if (!ready || p >= MAX_GPIO_PINS)
             return;
 
-        pthread_mutex_lock(&lock);
+        pthread_rwlock_wrlock(&lock);
+        pinRegistry[p].configured = true;
+        pinRegistry[p].isOutput = false;
+        invalidateCache();
+        pthread_rwlock_unlock(&lock);
 
-        struct gpiod_request_config *req_cfg = gpiod_request_config_new();
-        gpiod_request_config_add_line_by_offset(req_cfg, p);
-        gpiod_request_config_set_consumer(req_cfg, "hamclock-input");
-
-        if (request)
-            gpiod_line_request_release(request);
-
-        request = gpiod_chip_request_lines(chip, req_cfg);
-        gpiod_request_config_free(req_cfg);
-
-        pthread_mutex_unlock(&lock);
+        // Deferred reconfiguration happens on next access
 }
 
 
-/* _GPIO_LIBGPIOD
+/* _GPIO_LIBGPIOD - Optimized: Mark pin for output without immediate reconfiguration
  */
 void GPIO::setAsOutput(uint8_t p)
 {
-        if (!ready)
+        if (!ready || p >= MAX_GPIO_PINS)
             return;
 
-        pthread_mutex_lock(&lock);
+        pthread_rwlock_wrlock(&lock);
+        pinRegistry[p].configured = true;
+        pinRegistry[p].isOutput = true;
+        invalidateCache();
+        pthread_rwlock_unlock(&lock);
 
-        struct gpiod_request_config *req_cfg = gpiod_request_config_new();
-        gpiod_request_config_add_line_by_offset(req_cfg, p);
-        gpiod_request_config_set_consumer(req_cfg, "hamclock-output");
-        struct gpiod_line_config *line_cfg = gpiod_line_config_new();
-        gpiod_line_config_set_direction_output(line_cfg, p);
-        gpiod_request_config_set_line_config(req_cfg, line_cfg);
-
-        if (request)
-            gpiod_line_request_release(request);
-
-        request = gpiod_chip_request_lines(chip, req_cfg);
-        gpiod_line_config_free(line_cfg);
-        gpiod_request_config_free(req_cfg);
-
-        pthread_mutex_unlock(&lock);
+        // Deferred reconfiguration happens on next access
 }
 
 
-/* _GPIO_LIBGPIOD
+/* _GPIO_LIBGPIOD - Optimized: Set pin HIGH with minimal lock overhead
  */
 void GPIO::setHi(uint8_t p)
 {
-        if (!ready || !request)
+        if (!ready || p >= MAX_GPIO_PINS)
             return;
 
-        pthread_mutex_lock(&lock);
-        gpiod_line_request_set_value(request, p, 1);
-        pthread_mutex_unlock(&lock);
+        pthread_rwlock_rdlock(&lock);
+
+        // Reconfigure if needed (detects dirty requests)
+        if (pinRegistry[p].configured && !outputRequest) {
+            pthread_rwlock_unlock(&lock);
+            pthread_rwlock_wrlock(&lock);
+            reconfigureRequests();
+        }
+
+        if (outputRequest) {
+            gpiod_line_request_set_value(outputRequest, p, 1);
+            invalidateCache();
+        }
+
+        pthread_rwlock_unlock(&lock);
 }
 
 
-/* _GPIO_LIBGPIOD
+/* _GPIO_LIBGPIOD - Optimized: Set pin LOW with minimal lock overhead
  */
 void GPIO::setLo(uint8_t p)
 {
-        if (!ready || !request)
+        if (!ready || p >= MAX_GPIO_PINS)
             return;
 
-        pthread_mutex_lock(&lock);
-        gpiod_line_request_set_value(request, p, 0);
-        pthread_mutex_unlock(&lock);
+        pthread_rwlock_rdlock(&lock);
+
+        // Reconfigure if needed
+        if (pinRegistry[p].configured && !outputRequest) {
+            pthread_rwlock_unlock(&lock);
+            pthread_rwlock_wrlock(&lock);
+            reconfigureRequests();
+        }
+
+        if (outputRequest) {
+            gpiod_line_request_set_value(outputRequest, p, 0);
+            invalidateCache();
+        }
+
+        pthread_rwlock_unlock(&lock);
 }
 
 
-/* _GPIO_LIBGPIOD
+/* _GPIO_LIBGPIOD - Optimized: Set pin to HIGH or LOW state
  */
 void GPIO::setHiLo(uint8_t p, bool hi)
 {
-        if (!ready || !request)
-            return;
-
-        pthread_mutex_lock(&lock);
-        gpiod_line_request_set_value(request, p, hi ? 1 : 0);
-        pthread_mutex_unlock(&lock);
+        if (hi)
+            setHi(p);
+        else
+            setLo(p);
 }
 
 
-/* _GPIO_LIBGPIOD
+/* _GPIO_LIBGPIOD - Optimized: Read pin state with software cache
  */
 bool GPIO::readPin(uint8_t p)
 {
-        if (!ready || !request)
+        if (!ready || p >= MAX_GPIO_PINS)
             return false;
 
-        pthread_mutex_lock(&lock);
-        int val = gpiod_line_request_get_value(request, p);
-        pthread_mutex_unlock(&lock);
+        pthread_rwlock_rdlock(&lock);
 
-        return (val == 1);
+        // Ensure requests are configured
+        if (pinRegistry[p].configured && !inputRequest && !outputRequest) {
+            pthread_rwlock_unlock(&lock);
+            pthread_rwlock_wrlock(&lock);
+            reconfigureRequests();
+        }
+
+        // Use cache if valid
+        if (cacheValid && pinRegistry[p].configured) {
+            bool val;
+            if (pinRegistry[p].isOutput) {
+                val = (pinOutputCache & (1ULL << p)) != 0;
+            } else {
+                val = (pinStateCache & (1ULL << p)) != 0;
+            }
+            pthread_rwlock_unlock(&lock);
+            return val;
+        }
+
+        // Cache miss - read from hardware
+        bool result = false;
+        struct gpiod_line_request *req = pinRegistry[p].isOutput ? outputRequest : inputRequest;
+        if (req) {
+            int val = gpiod_line_request_get_value(req, p);
+            result = (val == 1);
+
+            // Update cache
+            if (result) {
+                pinStateCache |= (1ULL << p);
+            } else {
+                pinStateCache &= ~(1ULL << p);
+            }
+        }
+
+        pthread_rwlock_unlock(&lock);
+        return result;
+}
+
+
+/* _GPIO_LIBGPIOD - Batch reconfiguration: single syscall for all pins
+ * This is called lazily when GPIO operations are first attempted
+ */
+void GPIO::reconfigureRequests(void)
+{
+        // Release old requests
+        if (inputRequest) {
+            gpiod_line_request_release(inputRequest);
+            inputRequest = NULL;
+        }
+        if (outputRequest) {
+            gpiod_line_request_release(outputRequest);
+            outputRequest = NULL;
+        }
+
+        // Rebuild configs with all configured pins
+        gpiod_request_config_clear(inputConfig);
+        gpiod_request_config_clear(outputConfig);
+
+        gpiod_request_config_set_consumer(inputConfig, "hamclock-input");
+        gpiod_request_config_set_consumer(outputConfig, "hamclock-output");
+
+        // Add all configured pins to appropriate request
+        for (int i = 0; i < MAX_GPIO_PINS; i++) {
+            if (!pinRegistry[i].configured)
+                continue;
+
+            if (pinRegistry[i].isOutput) {
+                gpiod_request_config_add_line_by_offset(outputConfig, i);
+            } else {
+                gpiod_request_config_add_line_by_offset(inputConfig, i);
+            }
+        }
+
+        // Create input request if needed (single syscall for all input pins)
+        struct gpiod_line_config *inputLine = gpiod_line_config_new();
+        if (inputLine) {
+            gpiod_request_config_set_line_config(inputConfig, inputLine);
+            inputRequest = gpiod_chip_request_lines(chip, inputConfig);
+            if (!inputRequest) {
+                reportError("Failed to configure input pins");
+            }
+            gpiod_line_config_free(inputLine);
+        }
+
+        // Create output request if needed (single syscall for all output pins)
+        struct gpiod_line_config *outputLine = gpiod_line_config_new();
+        if (outputLine) {
+            gpiod_line_config_set_direction_output(outputLine);
+            gpiod_request_config_set_line_config(outputConfig, outputLine);
+            outputRequest = gpiod_chip_request_lines(chip, outputConfig);
+            if (!outputRequest) {
+                reportError("Failed to configure output pins");
+            }
+            gpiod_line_config_free(outputLine);
+        }
+
+        cacheValid = false;
+}
+
+
+/* _GPIO_LIBGPIOD - Report error via callback if set
+ */
+void GPIO::reportError(const char *message)
+{
+        if (errorHandler) {
+            errorHandler(message);
+        } else {
+            printf("GPIO Error: %s\n", message);
+        }
+}
+
+
+/* _GPIO_LIBGPIOD - Mark cache as invalid
+ */
+void GPIO::invalidateCache(void)
+{
+        cacheValid = false;
+        pinStateCache = 0;
+        pinOutputCache = 0;
+}
+
+
+/* _GPIO_LIBGPIOD - Refresh cache from hardware
+ */
+void GPIO::updateCache(void)
+{
+        if (!inputRequest && !outputRequest)
+            return;
+
+        pinStateCache = 0;
+        pinOutputCache = 0;
+
+        // Read all configured pins from hardware
+        for (int i = 0; i < MAX_GPIO_PINS; i++) {
+            if (!pinRegistry[i].configured)
+                continue;
+
+            struct gpiod_line_request *req = pinRegistry[i].isOutput ? outputRequest : inputRequest;
+            if (req) {
+                int val = gpiod_line_request_get_value(req, i);
+                if (val == 1) {
+                    pinStateCache |= (1ULL << i);
+                    if (pinRegistry[i].isOutput) {
+                        pinOutputCache |= (1ULL << i);
+                    }
+                }
+            }
+        }
+
+        cacheValid = true;
+}
+
+
+/* Public: Set error callback for debugging
+ */
+void GPIO::setErrorHandler(GPIO_ErrorCallback handler)
+{
+        pthread_rwlock_wrlock(&lock);
+        errorHandler = handler;
+        pthread_rwlock_unlock(&lock);
 }
 
 
@@ -476,5 +669,6 @@ void GPIO::setHi(uint8_t p) { }
 void GPIO::setLo(uint8_t p) { }
 void GPIO::setHiLo (uint8_t p, bool hi) { }
 bool GPIO::readPin (uint8_t p) { return false; }
+void GPIO::setErrorHandler(GPIO_ErrorCallback handler) { }
 
 #endif

@@ -14,6 +14,9 @@
 
 #include "Arduino.h"
 
+/* Error callback typedef for error reporting */
+typedef void (*GPIO_ErrorCallback)(const char *message);
+
 #if defined(_GPIO_FREEBSD)
 #include <sys/types.h>
 #include <libgpio.h>
@@ -35,6 +38,7 @@ class GPIO {
         void setHiLo (uint8_t p, bool hi);
         void setLo(uint8_t p);
         bool readPin (uint8_t p);
+        void setErrorHandler(GPIO_ErrorCallback handler);
 
 #if __cplusplus > 199711L
 
@@ -70,9 +74,33 @@ class GPIO {
 #elif defined(_GPIO_LIBGPIOD)
 
         bool ready;
-        pthread_mutex_t lock;
+        pthread_rwlock_t lock;                          // RWlock for better concurrency
         struct gpiod_chip *chip;
-        struct gpiod_line_request *request;
+        struct gpiod_line_request *inputRequest;        // Separate input request
+        struct gpiod_line_request *outputRequest;       // Separate output request
+        struct gpiod_request_config *inputConfig;       // Reusable input config
+        struct gpiod_request_config *outputConfig;      // Reusable output config
+
+        /* Pin registry - track which pins need what configuration */
+        static const uint8_t MAX_GPIO_PINS = 64;
+        struct {
+            bool configured;
+            bool isOutput;
+        } pinRegistry[MAX_GPIO_PINS];
+
+        /* Pin state cache - avoid repeated reads */
+        uint64_t pinStateCache;                         // Bitmap of pin states
+        uint64_t pinOutputCache;                        // Which pins are outputs
+        bool cacheValid;                                // Is cache up to date?
+
+        /* Error handling */
+        GPIO_ErrorCallback errorHandler;
+
+        /* Internal optimization methods */
+        void reconfigureRequests(void);                 // Batch reconfiguration
+        void reportError(const char *message);          // Report error via callback
+        void invalidateCache(void);                     // Mark cache as stale
+        void updateCache(void);                         // Refresh cache from hardware
 
 #endif
 
