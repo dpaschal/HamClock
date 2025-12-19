@@ -1,16 +1,18 @@
-//! Async data fetcher using reqwest and tokio
+//! Async data fetcher using reqwest and tokio with response caching
 
 use crate::error::AppResult;
 use crate::data::models::{SpaceWeather, Forecast, DxSpot, SatelliteData, AppData};
+use crate::data::cache::ResponseCache;
 use reqwest::Client;
 use serde::Deserialize;
 use chrono::Utc;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
-/// Async data fetcher for HamClock
+/// Async data fetcher for HamClock with caching
 pub struct DataFetcher {
     client: Client,
+    cache: Arc<ResponseCache>,
 }
 
 /// Space Weather API response from spacex.land
@@ -37,11 +39,38 @@ struct HourlyData {
 }
 
 impl DataFetcher {
-    /// Create a new data fetcher
+    /// Create a new data fetcher with caching
     pub fn new() -> Self {
         Self {
             client: Client::new(),
+            cache: Arc::new(ResponseCache::new()),
         }
+    }
+
+    /// Create a new data fetcher with provided cache
+    pub fn with_cache(cache: Arc<ResponseCache>) -> Self {
+        Self {
+            client: Client::new(),
+            cache,
+        }
+    }
+
+    /// Get reference to the cache
+    pub fn cache(&self) -> Arc<ResponseCache> {
+        Arc::clone(&self.cache)
+    }
+
+    /// Get cache statistics
+    pub fn cache_stats(&self) {
+        let stats = self.cache.get_stats();
+        log::info!(
+            "Cache Stats - Space Weather: {}, Forecast: {}, DX: {}, Satellites: {}, Total: {}",
+            stats.space_weather_cached,
+            stats.forecast_cached,
+            stats.dx_spots_cached,
+            stats.satellites_cached,
+            stats.total_cached
+        );
     }
 
     /// Fetch all data concurrently
@@ -86,7 +115,13 @@ impl DataFetcher {
     }
 
     /// Fetch space weather data (KP index, solar activity) from spacex.land
+    /// Uses caching with 30-minute TTL
     async fn fetch_space_weather(&self) -> AppResult<SpaceWeather> {
+        // Check cache first
+        if let Some(cached) = self.cache.get_space_weather() {
+            return Ok(cached);
+        }
+
         log::debug!("Fetching space weather from spacex.land API...");
 
         let response = self.client
@@ -115,19 +150,30 @@ impl DataFetcher {
         let kp = data.kp.unwrap_or(0.0);
         let a = data.a.unwrap_or(0.0) as i32;
 
-        log::info!("Space weather: KP={:.1}, A={}", kp, a);
-
-        Ok(SpaceWeather {
+        let weather = SpaceWeather {
             kp,
             a,
             ap: a, // AP index approximation
             flux: 80, // Placeholder - would need separate endpoint
             updated: Utc::now(),
-        })
+        };
+
+        log::info!("Space weather: KP={:.1}, A={}", kp, a);
+
+        // Cache the result
+        self.cache.cache_space_weather(weather.clone());
+
+        Ok(weather)
     }
 
     /// Fetch weather forecast using Open-Meteo API (free, no authentication required)
+    /// Uses caching with 2-hour TTL
     async fn fetch_forecast(&self) -> AppResult<Vec<Forecast>> {
+        // Check cache first
+        if let Some(cached) = self.cache.get_forecast() {
+            return Ok(cached);
+        }
+
         log::debug!("Fetching weather forecast from Open-Meteo API...");
 
         // Using a default location (can be made configurable)
@@ -188,6 +234,10 @@ impl DataFetcher {
         }
 
         log::info!("Fetched {} forecast entries", forecasts.len());
+
+        // Cache the result
+        self.cache.cache_forecast(forecasts.clone());
+
         Ok(forecasts)
     }
 
