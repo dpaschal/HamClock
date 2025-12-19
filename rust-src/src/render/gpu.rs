@@ -5,6 +5,7 @@ use winit::window::Window;
 use crate::AppResult;
 use crate::error::AppError;
 use std::sync::Arc;
+use chrono::Timelike;
 
 /// GPU rendering context with full window integration
 pub struct GpuContext {
@@ -142,14 +143,24 @@ impl GpuContext {
 
         let view = frame.texture.create_view(&TextureViewDescriptor::default());
 
+        // Get current time and space weather data
+        let now = chrono::Local::now();
+        let time_str = now.format("%H:%M:%S").to_string();
+
+        // Log time and space weather placeholder
+        log::debug!("Clock: {} | Kp: -- | Flux: --", time_str);
+
         // Create command encoder
         let mut encoder = self.device.create_command_encoder(&CommandEncoderDescriptor {
             label: Some("Main Render Encoder"),
         });
 
         {
-            // Begin render pass
-            let mut _render_pass = encoder.begin_render_pass(&RenderPassDescriptor {
+            // Begin render pass with dynamic color based on time (for visual feedback)
+            let seconds = now.second() as f64 / 60.0;
+            let color_variation = 0.05 + (seconds * 0.05);
+
+            let _render_pass = encoder.begin_render_pass(&RenderPassDescriptor {
                 label: Some("Main Render Pass"),
                 color_attachments: &[Some(RenderPassColorAttachment {
                     view: &view,
@@ -158,7 +169,7 @@ impl GpuContext {
                         load: LoadOp::Clear(Color {
                             r: 0.05,
                             g: 0.05,
-                            b: 0.1,
+                            b: 0.1 + color_variation,
                             a: 1.0,
                         }),
                         store: StoreOp::Store,
@@ -168,7 +179,10 @@ impl GpuContext {
                 occlusion_query_set: None,
                 timestamp_writes: None,
             });
-            // Render commands will be added here in future iterations
+
+            // Render commands placeholder for Phase 6.1
+            // Text rendering will be added with wgpu-glyph in next iteration
+            log::debug!("Render pass: {}x{} cleared", self.config.width, self.config.height);
         }
 
         // Submit commands to GPU
