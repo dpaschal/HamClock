@@ -36,7 +36,9 @@ set(SOURCES
     src/data/database.c
     src/api/http_client.c
     src/api/api_manager.c
+    src/api/noaa.c
     src/utils/string_utils.c
+    src/utils/json_simple.c
 )
 
 # Only add display sources if SDL2 is available

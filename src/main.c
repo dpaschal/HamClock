@@ -11,6 +11,8 @@
 #include "data/database.h"
 #include "data/cache.h"
 #include "api/http_client.h"
+#include "api/api_manager.h"
+#include "api/noaa.h"
 
 // Global state for signal handling
 static volatile int g_shutdown = 0;
@@ -75,6 +77,20 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
+    // Initialize API manager
+    if (api_manager_init() != 0) {
+        log_fatal("Failed to initialize API manager");
+        db_deinit();
+        return 1;
+    }
+
+    // Start API scheduling
+    if (api_manager_start() != 0) {
+        log_fatal("Failed to start API manager");
+        db_deinit();
+        return 1;
+    }
+
     log_info("All systems initialized successfully");
 
     // Main event loop (Phase 1 placeholder)
@@ -92,6 +108,7 @@ int main(int argc, char *argv[]) {
     // Cleanup
     log_info("Shutting down...");
 
+    api_manager_deinit();
     http_deinit();
     state_deinit();
     db_deinit();
