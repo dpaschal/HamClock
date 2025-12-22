@@ -260,7 +260,8 @@ static const char *get_kp_description(float kp_index) {
     return "Severe Storm";
 }
 
-void renderer_render_frame(renderer_context_t *ctx, font_set_t *fonts) {
+void renderer_render_frame(renderer_context_t *ctx, font_set_t *fonts,
+                          render_sun_data_t *sun, render_moon_data_t *moon) {
     if (!ctx || !ctx->renderer) return;
 
     // Clear background
@@ -324,6 +325,52 @@ void renderer_render_frame(renderer_context_t *ctx, font_set_t *fonts) {
         snprintf(a_str, sizeof(a_str), "A-Index: %.0f", sw->a_index);
         renderer_draw_text(ctx, fonts->font_small, a_str, panel_x + 170, panel_y + 50,
                           COLOR_ACCENT, COLOR_DARK_BG);
+    }
+
+    // Solar/Lunar panel (middle-left, below space weather)
+    int solar_panel_x = 20;
+    int solar_panel_y = 280;
+    int solar_panel_w = 300;
+    int solar_panel_h = 150;
+
+    renderer_draw_rect(ctx, solar_panel_x, solar_panel_y, solar_panel_w, solar_panel_h, COLOR_GRID);
+
+    if (fonts->font_normal) {
+        renderer_draw_text(ctx, fonts->font_normal, "Sun & Moon", solar_panel_x + 10, solar_panel_y + 10,
+                          COLOR_WHITE, COLOR_DARK_BG);
+    }
+
+    // Sun data
+    if (sun && fonts->font_small) {
+        char sun_str[64];
+        snprintf(sun_str, sizeof(sun_str), "Sun Dec: %.1f°", sun->sun_declination);
+        renderer_draw_text(ctx, fonts->font_small, sun_str, solar_panel_x + 20, solar_panel_y + 40,
+                          COLOR_ACCENT, COLOR_DARK_BG);
+
+        const char *sun_phase = sun->sun_is_daylight ? "☀ Daylight" : "🌙 Night";
+        renderer_draw_text(ctx, fonts->font_small, sun_phase, solar_panel_x + 20, solar_panel_y + 65,
+                          COLOR_ACCENT, COLOR_DARK_BG);
+
+        snprintf(sun_str, sizeof(sun_str), "EoT: %+.1f min", sun->sun_eot);
+        renderer_draw_text(ctx, fonts->font_small, sun_str, solar_panel_x + 170, solar_panel_y + 40,
+                          COLOR_ACCENT, COLOR_DARK_BG);
+    }
+
+    // Moon data
+    if (moon && fonts->font_small) {
+        char moon_str[64];
+        snprintf(moon_str, sizeof(moon_str), "Moon: %.0f%%", moon->moon_illumination);
+        renderer_draw_text(ctx, fonts->font_small, moon_str, solar_panel_x + 20, solar_panel_y + 90,
+                          COLOR_SUCCESS, COLOR_DARK_BG);
+
+        if (moon->moon_phase_name) {
+            renderer_draw_text(ctx, fonts->font_small, moon->moon_phase_name, solar_panel_x + 170, solar_panel_y + 90,
+                              COLOR_SUCCESS, COLOR_DARK_BG);
+        }
+
+        snprintf(moon_str, sizeof(moon_str), "Age: %.1f days", moon->moon_age);
+        renderer_draw_text(ctx, fonts->font_small, moon_str, solar_panel_x + 20, solar_panel_y + 115,
+                          COLOR_SUCCESS, COLOR_DARK_BG);
     }
 
     // Status panel (top-right)

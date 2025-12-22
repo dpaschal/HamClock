@@ -14,6 +14,9 @@
 #include "api/api_manager.h"
 #include "api/noaa.h"
 #include "display/renderer.h"
+#include "astro/sun.h"
+#include "astro/moon.h"
+#include "utils/maidenhead.h"
 
 // Global state for signal handling
 static volatile int g_shutdown = 0;
@@ -109,19 +112,51 @@ int main(int argc, char *argv[]) {
     log_info("Display initialized - rendering loop starting");
 
     // Main event loop with rendering
+    time_t now = time(NULL);
     while (!g_shutdown && render_ctx.running) {
         // Handle input events
         if (!renderer_handle_events(&render_ctx)) {
             break;
         }
 
-        // Render current frame with NOAA data
-        renderer_render_frame(&render_ctx, &fonts);
+        // Update astronomical data (Phase 4)
+        now = time(NULL);
+        sun_position_t sun_pos = {0};
+        moon_position_t moon_pos = {0};
+
+        // Calculate sun position (observer at 0,0 for now - can be customized)
+        sun_calculate_position(now, 0.0, 0.0, &sun_pos);
+        sun_pos.season = sun_get_season(now);
+        sun_pos.season_name = sun_get_season_name(sun_pos.season);
+        sun_pos.solstice_equinox = sun_get_next_solstice_equinox(now);
+
+        // Calculate moon position
+        moon_calculate_position(now, &moon_pos);
+
+        // Prepare rendering data
+        render_sun_data_t render_sun = {
+            .sun_declination = sun_pos.declination,
+            .sun_eot = sun_pos.equation_of_time,
+            .sun_sunrise = sun_pos.sunrise_time,
+            .sun_sunset = sun_pos.sunset_time,
+            .sun_subsolar_lat = sun_pos.subsolar_lat,
+            .sun_subsolar_lon = sun_pos.subsolar_lon,
+            .sun_is_daylight = sun_pos.is_daylight
+        };
+
+        render_moon_data_t render_moon = {
+            .moon_illumination = moon_pos.illumination,
+            .moon_age = moon_pos.age,
+            .moon_phase_name = moon_pos.phase_name
+        };
+
+        // Render current frame with NOAA, sun, and moon data
+        renderer_render_frame(&render_ctx, &fonts, &render_sun, &render_moon);
 
         // Limit frame rate
         renderer_limit_frame_rate(&render_ctx);
 
-        // TODO: Phase 4 - Astronomical calculations
+        // TODO: Phase 4+ - Greyline rendering on world map
         // TODO: Phase 5 - Additional widgets (clocks, plots)
         // TODO: Phase 6 - Advanced features (DX cluster, satellites)
     }

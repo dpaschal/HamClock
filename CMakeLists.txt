@@ -49,6 +49,9 @@ set(SOURCES
     src/api/noaa.c
     src/utils/string_utils.c
     src/utils/json_simple.c
+    src/utils/maidenhead.c
+    src/astro/sun.c
+    src/astro/moon.c
 )
 
 # Only add display sources if SDL2 is available

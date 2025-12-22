@@ -50,7 +50,25 @@ void renderer_fill_rect(renderer_context_t *ctx, int x, int y, int w, int h, SDL
 void renderer_draw_line(renderer_context_t *ctx, int x1, int y1, int x2, int y2, SDL_Color color);
 
 // Main render frame (orchestrates all drawing)
-void renderer_render_frame(renderer_context_t *ctx, font_set_t *fonts);
+// Pass optional sun/moon data pointers (can be NULL)
+typedef struct {
+    double sun_declination;
+    double sun_eot;
+    time_t sun_sunrise;
+    time_t sun_sunset;
+    double sun_subsolar_lat;
+    double sun_subsolar_lon;
+    int sun_is_daylight;
+} render_sun_data_t;
+
+typedef struct {
+    double moon_illumination;
+    double moon_age;
+    const char *moon_phase_name;
+} render_moon_data_t;
+
+void renderer_render_frame(renderer_context_t *ctx, font_set_t *fonts,
+                          render_sun_data_t *sun, render_moon_data_t *moon);
 
 // Input handling
 int renderer_handle_events(renderer_context_t *ctx);
