@@ -487,7 +487,17 @@ This is a reference implementation of HamClock in pure C. Community contribution
 
 ## License
 
-[Choose appropriate license: GPL, MIT, Apache, etc.]
+MIT License - See [LICENSE](LICENSE) file for details.
+
+This project is licensed under the MIT License, which permits:
+- ✅ Commercial use and distribution
+- ✅ Modification and private use
+- ✅ Sublicensing
+
+With only the requirement to:
+- ⚠️ Include the original license and copyright notice
+
+**Perfect for ham radio community:** Encourages sharing and modifications while remaining open.
 
 ---
 
