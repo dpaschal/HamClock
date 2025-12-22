@@ -60,6 +60,7 @@ if(SDL2_FOUND AND SDL2_TTF_FOUND AND SDL2_IMAGE_FOUND)
     # Phase 3+ display modules
     list(APPEND SOURCES
         src/display/renderer.c
+        src/display/earthmap.c
     )
     # Phase 4+ modules (optional, created on demand)
     # list(APPEND SOURCES

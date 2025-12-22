@@ -14,6 +14,7 @@
 #include "api/api_manager.h"
 #include "api/noaa.h"
 #include "display/renderer.h"
+#include "display/earthmap.h"
 #include "astro/sun.h"
 #include "astro/moon.h"
 #include "utils/maidenhead.h"
@@ -109,6 +110,14 @@ int main(int argc, char *argv[]) {
         }
     }
 
+    // Initialize world map with greyline (Phase 5)
+    earthmap_ctx_t map_ctx = {0};
+    observer_t observer = {0.0, 0.0, "Observer"};  // Greenwich at equator for demo
+
+    if (earthmap_init(&map_ctx, render_ctx.renderer, 800, 500) != 0) {
+        log_warn("Failed to initialize earthmap");
+    }
+
     log_info("Display initialized - rendering loop starting");
 
     // Main event loop with rendering
@@ -150,20 +159,34 @@ int main(int argc, char *argv[]) {
             .moon_phase_name = moon_pos.phase_name
         };
 
+        // Render world map with greyline (Phase 5)
+        // Position map on left side of screen
+        SDL_Rect map_rect = {10, 60, 800, 500};
+
+        // Render map components
+        earthmap_render_base(&map_ctx);
+        earthmap_render_grid(&map_ctx);
+        earthmap_render_greyline(&map_ctx, &sun_pos);
+        earthmap_render_observer(&map_ctx, &observer);
+
+        // Draw map border
+        SDL_SetRenderDrawColor(render_ctx.renderer, 100, 100, 100, 255);
+        SDL_RenderDrawRect(render_ctx.renderer, &map_rect);
+
         // Render current frame with NOAA, sun, and moon data
         renderer_render_frame(&render_ctx, &fonts, &render_sun, &render_moon);
 
         // Limit frame rate
         renderer_limit_frame_rate(&render_ctx);
 
-        // TODO: Phase 4+ - Greyline rendering on world map
-        // TODO: Phase 5 - Additional widgets (clocks, plots)
+        // TODO: Phase 5+ - Additional widgets (clocks, plots)
         // TODO: Phase 6 - Advanced features (DX cluster, satellites)
     }
 
     // Cleanup
     log_info("Shutting down...");
 
+    earthmap_deinit(&map_ctx);
     renderer_unload_fonts(&fonts);
     renderer_deinit(&render_ctx);
     api_manager_deinit();

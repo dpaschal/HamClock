@@ -3,6 +3,7 @@
 
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_ttf.h>
+#include "earthmap.h"
 
 // Display configuration
 #define DEFAULT_WINDOW_WIDTH 1024
