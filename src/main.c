@@ -15,9 +15,11 @@
 #include "api/noaa.h"
 #include "display/renderer.h"
 #include "display/earthmap.h"
+#include "display/clocks.h"
 #include "astro/sun.h"
 #include "astro/moon.h"
 #include "utils/maidenhead.h"
+#include "utils/timezone.h"
 
 // Global state for signal handling
 static volatile int g_shutdown = 0;
@@ -118,6 +120,22 @@ int main(int argc, char *argv[]) {
         log_warn("Failed to initialize earthmap");
     }
 
+    // Initialize clock panel (Phase 6)
+    clock_panel_t clock_panel = {0};
+    SDL_Color white = {255, 255, 255, 255};
+    SDL_Color cyan = {0, 200, 255, 255};
+    SDL_Color yellow = {255, 255, 100, 255};
+
+    if (clocks_panel_init(&clock_panel, 4, 820, 70, 190, 380) != 0) {
+        log_warn("Failed to initialize clock panel");
+    } else {
+        // Add clocks for different timezones
+        clocks_add(&clock_panel, "UTC", TZ_UTC, white, cyan);
+        clocks_add(&clock_panel, "DE (CET)", TZ_CET, white, yellow);
+        clocks_add(&clock_panel, "US (EST)", TZ_EST, white, yellow);
+        clocks_add(&clock_panel, "Local", TZ_LOCAL, white, cyan);
+    }
+
     log_info("Display initialized - rendering loop starting");
 
     // Main event loop with rendering
@@ -173,6 +191,11 @@ int main(int argc, char *argv[]) {
         SDL_SetRenderDrawColor(render_ctx.renderer, 100, 100, 100, 255);
         SDL_RenderDrawRect(render_ctx.renderer, &map_rect);
 
+        // Render clock panel (Phase 6)
+        clocks_update(&clock_panel, now);
+        clocks_render(&clock_panel, render_ctx.renderer, fonts.font_large,
+                     fonts.font_normal, fonts.font_small);
+
         // Render current frame with NOAA, sun, and moon data
         renderer_render_frame(&render_ctx, &fonts, &render_sun, &render_moon);
 
@@ -186,6 +209,7 @@ int main(int argc, char *argv[]) {
     // Cleanup
     log_info("Shutting down...");
 
+    clocks_panel_deinit(&clock_panel);
     earthmap_deinit(&map_ctx);
     renderer_unload_fonts(&fonts);
     renderer_deinit(&render_ctx);

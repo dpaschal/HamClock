@@ -50,6 +50,7 @@ set(SOURCES
     src/utils/string_utils.c
     src/utils/json_simple.c
     src/utils/maidenhead.c
+    src/utils/timezone.c
     src/astro/sun.c
     src/astro/moon.c
 )
@@ -61,6 +62,7 @@ if(SDL2_FOUND AND SDL2_TTF_FOUND AND SDL2_IMAGE_FOUND)
     list(APPEND SOURCES
         src/display/renderer.c
         src/display/earthmap.c
+        src/display/clocks.c
     )
     # Phase 4+ modules (optional, created on demand)
     # list(APPEND SOURCES
