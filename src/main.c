@@ -13,6 +13,7 @@
 #include "api/http_client.h"
 #include "api/api_manager.h"
 #include "api/noaa.h"
+#include "display/renderer.h"
 
 // Global state for signal handling
 static volatile int g_shutdown = 0;
@@ -93,21 +94,43 @@ int main(int argc, char *argv[]) {
 
     log_info("All systems initialized successfully");
 
-    // Main event loop (Phase 1 placeholder)
-    int iteration = 0;
-    while (!g_shutdown && iteration < 10) {
-        log_info("Main loop iteration %d", ++iteration);
+    // Initialize display (Phase 3)
+    renderer_context_t render_ctx = {0};
+    font_set_t fonts = {0};
 
-        // TODO: Phase 2 - Register API tasks
-        // TODO: Phase 3 - Rendering loop
-        // TODO: Phase 4-6 - Feature implementation
+    if (renderer_init(&render_ctx, DEFAULT_WINDOW_WIDTH, DEFAULT_WINDOW_HEIGHT) != 0) {
+        log_warn("Failed to initialize renderer; running in data-only mode");
+    } else {
+        if (renderer_load_fonts(&fonts) != 0) {
+            log_warn("Failed to load fonts; continuing with renderer");
+        }
+    }
 
-        sleep(1);
+    log_info("Display initialized - rendering loop starting");
+
+    // Main event loop with rendering
+    while (!g_shutdown && render_ctx.running) {
+        // Handle input events
+        if (!renderer_handle_events(&render_ctx)) {
+            break;
+        }
+
+        // Render current frame with NOAA data
+        renderer_render_frame(&render_ctx, &fonts);
+
+        // Limit frame rate
+        renderer_limit_frame_rate(&render_ctx);
+
+        // TODO: Phase 4 - Astronomical calculations
+        // TODO: Phase 5 - Additional widgets (clocks, plots)
+        // TODO: Phase 6 - Advanced features (DX cluster, satellites)
     }
 
     // Cleanup
     log_info("Shutting down...");
 
+    renderer_unload_fonts(&fonts);
+    renderer_deinit(&render_ctx);
     api_manager_deinit();
     http_deinit();
     state_deinit();

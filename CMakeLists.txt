@@ -20,10 +20,20 @@ endif()
 find_package(SQLite3 REQUIRED)
 find_package(CURL REQUIRED)
 
-# Check for SDL2 (optional, for Phase 3)
-find_package(SDL2 QUIET)
-find_package(SDL2_ttf QUIET)
-find_package(SDL2_image QUIET)
+# Check for SDL2 (optional, for Phase 3+)
+find_package(PkgConfig QUIET)
+if(PkgConfig_FOUND)
+    pkg_check_modules(SDL2 QUIET sdl2)
+    pkg_check_modules(SDL2_TTF QUIET SDL2_ttf)
+    pkg_check_modules(SDL2_IMAGE QUIET SDL2_image)
+endif()
+
+# Fallback: try old-style find_package if pkg-config didn't work
+if(NOT SDL2_FOUND)
+    find_package(SDL2 QUIET)
+    find_package(SDL2_ttf QUIET)
+    find_package(SDL2_image QUIET)
+endif()
 
 # Source files
 set(SOURCES
@@ -43,13 +53,17 @@ set(SOURCES
 
 # Only add display sources if SDL2 is available
 if(SDL2_FOUND AND SDL2_TTF_FOUND AND SDL2_IMAGE_FOUND)
+    message(STATUS "SDL2 found - display modules enabled")
+    # Phase 3+ display modules
     list(APPEND SOURCES
         src/display/renderer.c
-        src/display/earthmap.c
-        src/astro/sun.c
-        src/astro/moon.c
     )
-    message(STATUS "SDL2 found - display modules enabled")
+    # Phase 4+ modules (optional, created on demand)
+    # list(APPEND SOURCES
+    #     src/display/earthmap.c
+    #     src/astro/sun.c
+    #     src/astro/moon.c
+    # )
 else()
     message(STATUS "SDL2 not found - building data layer only (Phase 1-2)")
 endif()
@@ -67,12 +81,14 @@ target_link_libraries(hamclock
 
 # Link SDL2 if available
 if(SDL2_FOUND AND SDL2_TTF_FOUND AND SDL2_IMAGE_FOUND)
-    target_link_libraries(hamclock
-        PRIVATE
-        SDL2::SDL2
-        SDL2::SDL2_ttf
-        SDL2::SDL2_image
-    )
+    # Try to link with CMake targets first
+    if(TARGET SDL2::SDL2)
+        target_link_libraries(hamclock PRIVATE SDL2::SDL2 SDL2::SDL2_ttf SDL2::SDL2_image)
+    else()
+        # Fall back to pkg-config libraries
+        target_link_libraries(hamclock PRIVATE ${SDL2_LIBRARIES} ${SDL2_TTF_LIBRARIES} ${SDL2_IMAGE_LIBRARIES})
+        target_include_directories(hamclock PRIVATE ${SDL2_INCLUDE_DIRS} ${SDL2_TTF_INCLUDE_DIRS} ${SDL2_IMAGE_INCLUDE_DIRS})
+    endif()
 endif()
 
 # Include directories
