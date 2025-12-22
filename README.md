@@ -514,9 +514,30 @@ With only the requirement to:
 
 ## Support & Feedback
 
-- **GitHub Issues:** [Your repo]/issues
-- **Documentation:** See `/docs` folder
+### Bug Reports
+- **GitHub Issues:** https://github.com/dpaschal/HamClock/issues
+- **Email:** Report bugs directly without GitHub account
+- **Include:** Platform, compiler version, error message, steps to reproduce
+
+### Feature Requests
+- **GitHub Discussions:** https://github.com/dpaschal/HamClock/discussions (Ideas category)
+- **GitHub Issues:** https://github.com/dpaschal/HamClock/issues (with "enhancement" label)
+- **Email:** Send suggestions and feature ideas
+
+### Community & Resources
+- **Documentation:** Complete guides included (README.md, BUILD.md, CROSS_COMPILE.md, etc.)
 - **Ham Radio Forums:** [ARRL](https://www.arrl.org/), [eham](https://www.eham.net/)
+- **Questions:** Ask in GitHub Discussions Q&A section
+
+### Public Access
+✅ **No authentication required** to:
+- Clone repository
+- Download source code
+- View documentation
+- Read bug reports and discussions
+- Access all project files
+
+*GitHub account required only to create issues/discussions (free to create)*
 
 ---
 
