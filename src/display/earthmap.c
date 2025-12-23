@@ -123,34 +123,35 @@ void earthmap_render_base(earthmap_ctx_t *ctx) {
     SDL_Rect ocean = {ctx->offset_x, ctx->offset_y, ctx->width, ctx->height};
     SDL_RenderFillRect(ctx->renderer, &ocean);
 
-    // Load and render world map image
-    static SDL_Texture *map_texture = NULL;
+    // Draw simple procedural world map
+    // This creates basic land masses in green
+    SDL_SetRenderDrawColor(ctx->renderer, 107, 142, 70, 255);  // Olive green for land
 
-    if (!map_texture) {
-        // Try to load map image (first load only)
-        SDL_Surface *map_surface = IMG_Load("data/maps/world.png");
-        if (map_surface) {
-            map_texture = SDL_CreateTextureFromSurface(ctx->renderer, map_surface);
-            SDL_FreeSurface(map_surface);
-            if (!map_texture) {
-                log_warn("Failed to create texture from world map image");
-            }
-        } else {
-            log_warn("Failed to load world map image: data/maps/world.png");
-        }
+    // Define continent rectangles (simplified but effective)
+    struct { int x, y, w, h; } continents[] = {
+        // North America
+        {ctx->offset_x + 50, ctx->offset_y + 80, 140, 130},
+        // South America
+        {ctx->offset_x + 90, ctx->offset_y + 220, 70, 140},
+        // Europe & Africa
+        {ctx->offset_x + 260, ctx->offset_y + 50, 200, 300},
+        // Asia
+        {ctx->offset_x + 380, ctx->offset_y + 70, 280, 250},
+        // Australia
+        {ctx->offset_x + 570, ctx->offset_y + 280, 70, 90},
+        // Greenland
+        {ctx->offset_x + 30, ctx->offset_y + 20, 40, 50},
+    };
+
+    // Draw all continents
+    for (int i = 0; i < 6; i++) {
+        SDL_RenderFillRect(ctx->renderer, (SDL_Rect*)&continents[i]);
     }
 
-    // Render map texture if available
-    if (map_texture) {
-        SDL_Rect map_rect = {ctx->offset_x, ctx->offset_y, ctx->width, ctx->height};
-        SDL_RenderCopy(ctx->renderer, map_texture, NULL, &map_rect);
-    } else {
-        // Fallback: simple continents if map unavailable
-        SDL_SetRenderDrawColor(ctx->renderer, 107, 142, 70, 255);  // Green
-        SDL_Rect continent = {ctx->offset_x + 50, ctx->offset_y + 50, 150, 120};
-        SDL_RenderFillRect(ctx->renderer, &continent);
-        continent = (SDL_Rect){ctx->offset_x + 250, ctx->offset_y + 200, 100, 80};
-        SDL_RenderFillRect(ctx->renderer, &continent);
+    // Draw coastline borders for definition
+    SDL_SetRenderDrawColor(ctx->renderer, 40, 80, 60, 255);  // Dark green outline
+    for (int i = 0; i < 6; i++) {
+        SDL_RenderDrawRect(ctx->renderer, (SDL_Rect*)&continents[i]);
     }
 }
 
