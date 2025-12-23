@@ -106,10 +106,15 @@ int renderer_load_fonts(font_set_t *fonts) {
 
     // Try to load system fonts (common Linux paths)
     const char *font_paths[] = {
+        // Fedora/RHEL fonts
+        "/usr/share/fonts/adwaita-sans-fonts/AdwaitaSans-Regular.ttf",
+        "/usr/share/fonts/google-carlito-fonts/Carlito-Regular.ttf",
+        // Debian/Ubuntu fonts
         "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
         "/usr/share/fonts/liberation/LiberationSans-Regular.ttf",
         "/usr/share/fonts/gnu-free/FreeSans.ttf",
-        "C:\\Windows\\Fonts\\Arial.ttf",  // Windows fallback
+        // Windows fallback
+        "C:\\Windows\\Fonts\\Arial.ttf",
         NULL
     };
 
