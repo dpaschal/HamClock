@@ -117,65 +117,154 @@ int earthmap_screen_to_latlon(earthmap_ctx_t *ctx, int screen_x, int screen_y,
 void earthmap_render_base(earthmap_ctx_t *ctx) {
     if (!ctx || !ctx->renderer) return;
 
-    // Ocean background
-    SDL_SetRenderDrawColor(ctx->renderer, COLOR_OCEAN.r, COLOR_OCEAN.g, COLOR_OCEAN.b, COLOR_OCEAN.a);
-    SDL_Rect ocean = {ctx->offset_x, ctx->offset_y, ctx->width, ctx->height};
-    SDL_RenderFillRect(ctx->renderer, &ocean);
+    // Fill background (ocean) at correct screen position
+    SDL_SetRenderDrawColor(ctx->renderer, COLOR_OCEAN.r, COLOR_OCEAN.g,
+                          COLOR_OCEAN.b, COLOR_OCEAN.a);
+    SDL_Rect full = {ctx->offset_x, ctx->offset_y, ctx->width, ctx->height};
+    SDL_RenderFillRect(ctx->renderer, &full);
 
-    // Vector coastline data (lat/lon points)
-    typedef struct { double lat, lon; } pt;
+    // Draw simplified continents as filled regions
+    // This is a minimal coastline representation
+    // For production, would use proper map data (Natural Earth, GSHHG, etc.)
 
-    // North America (realistic shape)
-    pt na[] = {{49,-141},{65,-130},{68,-110},{65,-95},{60,-85},{55,-80},
-               {45,-75},{40,-72},{35,-75},{28,-80},{25,-83},{26,-97},{28,-97},
-               {26,-95},{25,-100},{28,-105},{32,-114},{35,-120},{38,-122},
-               {40,-125},{43,-124},{46,-124},{49,-123},{50,-125},{52,-127},
-               {54,-130},{56,-135},{58,-138},{60,-141}};
+    // Continental regions (approximate lat/lon bounds)
+    typedef struct {
+        double lat_min, lat_max;
+        double lon_min, lon_max;
+    } continent_t;
 
-    // South America
-    pt sa[] = {{12,-69},{8,-62},{4,-55},{1,-48},{-3,-45},{-8,-40},{-12,-38},
-               {-18,-40},{-22,-48},{-28,-50},{-33,-55},{-38,-60},{-45,-68},
-               {-52,-75},{-54,-72},{-50,-74},{-45,-70},{-38,-70},{-25,-70},
-               {-15,-72},{-5,-80},{0,-77},{5,-72},{10,-68},{12,-69}};
+    continent_t continents[] = {
+        // NORTH AMERICA
+        {25.0, 50.0, -130.0, -65.0},
+        {48.0, 65.0, -141.0, -60.0},  // Canada
+        {16.0, 28.0, -87.0, -74.0},   // Central America & Caribbean
 
-    // Africa-Europe-Mideast
-    pt af[] = {{35,-5},{37,-3},{40,2},{42,8},{40,15},{38,25},{35,30},{31,33},
-               {28,35},{24,35},{22,38},{18,40},{10,42},{5,40},{2,35},{0,32},
-               {-3,30},{-8,25},{-12,20},{-15,10},{-18,5},{-22,-5},{-28,-15},
-               {-32,-25},{-30,15},{-25,30},{-15,40},{0,42},{10,35},{20,40},{35,-5}};
+        // SOUTH AMERICA
+        {-56.0, 13.0, -82.0, -35.0},
+        {-45.0, -38.0, -68.0, -52.0}, // Southern cone
+        {-27.0, -17.0, -65.0, -48.0}, // Brazil SE
 
-    // Asia (huge)
-    pt as[] = {{45,60},{52,70},{58,90},{62,110},{65,135},{67,160},{65,170},
-               {58,165},{52,150},{48,145},{45,140},{40,145},{35,140},{30,130},
-               {28,120},{25,119},{22,112},{20,108},{15,103},{10,95},{5,92},
-               {2,98},{-2,103},{-8,110},{-15,130},{-18,140},{-10,150},{0,140},
-               {10,130},{20,125},{28,125},{35,135},{40,145},{45,60}};
+        // GREENLAND
+        {60.0, 84.0, -73.0, -11.0},
+        {82.0, 84.0, -40.0, 10.0},    // Northern islands
 
-    // Australia
-    pt au[] = {{-10,142},{-14,146},{-18,148},{-22,152},{-28,154},{-34,152},
-               {-38,148},{-39,141},{-37,135},{-33,130},{-28,128},{-22,128},
-               {-18,130},{-14,136},{-10,142}};
+        // EUROPE
+        {35.0, 71.0, -11.0, 41.0},
+        {50.0, 60.0, -10.0, 2.0},     // UK & Iceland
+        {65.0, 71.0, 5.0, 35.0},      // Scandinavia
+        {40.0, 46.0, 8.0, 30.0},      // Mediterranean
 
-    // Draw coastline polylines
-    SDL_SetRenderDrawColor(ctx->renderer, COLOR_LAND.r, COLOR_LAND.g, COLOR_LAND.b, COLOR_LAND.a);
+        // AFRICA
+        {-35.0, 37.0, -18.0, 52.0},
+        {-34.0, -25.0, 18.0, 35.0},   // Southern Africa detail
+        {5.0, 17.0, -18.0, 8.0},      // West Africa detail
+        {-12.0, 5.0, 30.0, 45.0},     // East Africa detail
 
-    // Helper to draw polyline
-    #define DRAW_POLY(pts, cnt) do { \
-        int px=-1, py=-1; \
-        for(int i=0; i<cnt; i++) { \
-            int x, y; \
-            if(earthmap_latlon_to_screen(ctx, pts[i].lat, pts[i].lon, &x, &y)) { \
-                if(px>=0) SDL_RenderDrawLine(ctx->renderer, px, py, x, y); \
-                px=x; py=y; \
-            } \
-        } \
-    } while(0)
+        // MIDDLE EAST & CENTRAL ASIA
+        {15.0, 45.0, 26.0, 60.0},
+        {35.0, 55.0, 56.0, 90.0},     // Steppe regions
 
-    DRAW_POLY(na, 29);
-    DRAW_POLY(sa, 25);
-    DRAW_POLY(af, 30);
-    DRAW_POLY(as, 32);
-    DRAW_POLY(au, 15);
+        // ASIA
+        {-10.0, 77.0, 60.0, 180.0},   // East & Southeast Asia
+        {-12.0, 5.0, 95.0, 141.0},    // Southeast Asia islands
+        {20.0, 55.0, 65.0, 145.0},    // Central Asia
+        {53.0, 73.0, 80.0, 180.0},    // Siberia
+
+        // OCEANIA & PACIFIC
+        {-47.0, -34.0, 113.0, 155.0}, // Australia
+        {-48.0, -46.0, 166.0, 179.0}, // New Zealand
+        {-20.0, 0.0, 130.0, 165.0},   // Indonesian islands
+        {-12.0, 5.0, 128.0, 155.0},   // Papua New Guinea
+        {-17.0, -10.0, 120.0, 135.0}, // Australia NW
+
+        // ADDITIONAL ISLANDS & FEATURES
+        {-25.0, -10.0, 40.0, 60.0},   // Madagascar
+        {32.0, 42.0, 20.0, 45.0},     // Balkans detail
+        {1.0, 10.0, -20.0, -8.0},     // Gulf of Guinea
+        {51.0, 57.0, -7.0, 2.0},      // British Isles detail
+        {62.0, 71.0, 10.0, 33.0},     // Scandinavia detail
+    };
+
+    SDL_SetRenderDrawColor(ctx->renderer, COLOR_LAND.r, COLOR_LAND.g,
+                          COLOR_LAND.b, COLOR_LAND.a);
+
+    for (size_t i = 0; i < sizeof(continents) / sizeof(continent_t); i++) {
+        continent_t *cont = &continents[i];
+
+        int x1, y1, x2, y2;
+        earthmap_latlon_to_screen(ctx, cont->lat_min, cont->lon_min, &x1, &y1);
+        earthmap_latlon_to_screen(ctx, cont->lat_max, cont->lon_max, &x2, &y2);
+
+        // Handle coordinate order (Mercator flips Y axis)
+        SDL_Rect continent;
+        continent.x = (x1 < x2) ? x1 : x2;
+        continent.y = (y1 < y2) ? y1 : y2;
+        continent.w = (x1 > x2) ? (x1 - x2) : (x2 - x1);
+        continent.h = (y1 > y2) ? (y1 - y2) : (y2 - y1);
+
+        if (continent.w > 0 && continent.h > 0) {
+            SDL_RenderFillRect(ctx->renderer, &continent);
+        }
+    }
+
+    // Draw coastline details - borders around continents for visual definition
+    SDL_SetRenderDrawColor(ctx->renderer, 50, 80, 120, 255);  // Darker blue for coastlines
+    for (size_t i = 0; i < sizeof(continents) / sizeof(continent_t); i++) {
+        continent_t *cont = &continents[i];
+
+        int x1, y1, x2, y2;
+        earthmap_latlon_to_screen(ctx, cont->lat_min, cont->lon_min, &x1, &y1);
+        earthmap_latlon_to_screen(ctx, cont->lat_max, cont->lon_max, &x2, &y2);
+
+        SDL_Rect continent;
+        continent.x = (x1 < x2) ? x1 : x2;
+        continent.y = (y1 < y2) ? y1 : y2;
+        continent.w = (x1 > x2) ? (x1 - x2) : (x2 - x1);
+        continent.h = (y1 > y2) ? (y1 - y2) : (y2 - y1);
+
+        if (continent.w > 0 && continent.h > 0) {
+            // Draw border around continent for detail
+            SDL_RenderDrawRect(ctx->renderer, &continent);
+        }
+    }
+
+    // Add elevation shading - darker green for "mountains", lighter for "lowlands"
+    SDL_Color dark_land = {80, 110, 50, 255};  // Darker green for mountains
+    SDL_SetRenderDrawColor(ctx->renderer, dark_land.r, dark_land.g, dark_land.b, dark_land.a);
+
+    // Mountain/elevation regions (approximate)
+    typedef struct {
+        double lat_min, lat_max;
+        double lon_min, lon_max;
+    } elevation_t;
+
+    elevation_t mountains[] = {
+        {15.0, 35.0, 75.0, 105.0},    // Himalayas
+        {35.0, 50.0, -125.0, -100.0}, // Rocky Mountains
+        {20.0, 30.0, -100.0, -87.0},  // Central America highlands
+        {-25.0, -15.0, -70.0, -65.0}, // Andes
+        {40.0, 50.0, 10.0, 30.0},     // Alps & Mediterranean mountains
+        {55.0, 70.0, 30.0, 60.0},     // Caucasus & Russian mountains
+        {53.0, 60.0, 105.0, 160.0},   // East Siberian ranges
+        {-45.0, -30.0, 145.0, 175.0}, // New Zealand & Australian mountains
+    };
+
+    for (size_t i = 0; i < sizeof(mountains) / sizeof(elevation_t); i++) {
+        elevation_t *mt = &mountains[i];
+        int x1, y1, x2, y2;
+        earthmap_latlon_to_screen(ctx, mt->lat_min, mt->lon_min, &x1, &y1);
+        earthmap_latlon_to_screen(ctx, mt->lat_max, mt->lon_max, &x2, &y2);
+
+        SDL_Rect mountain;
+        mountain.x = (x1 < x2) ? x1 : x2;
+        mountain.y = (y1 < y2) ? y1 : y2;
+        mountain.w = (x1 > x2) ? (x1 - x2) : (x2 - x1);
+        mountain.h = (y1 > y2) ? (y1 - y2) : (y2 - y1);
+
+        if (mountain.w > 0 && mountain.h > 0) {
+            SDL_RenderFillRect(ctx->renderer, &mountain);
+        }
+    }
 }
 
 void earthmap_render_grid(earthmap_ctx_t *ctx) {

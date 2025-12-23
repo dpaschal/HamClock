@@ -55,14 +55,13 @@ int clocks_add(clock_panel_t *panel, const char *label, timezone_t tz,
     clock->label_color = label_color;
     clock->time_color = time_color;
 
-    // Calculate position in grid
-    int clock_width = (panel->width - 20) / 2;  // 2 columns
-    int clock_height = 60;
-    int row = panel->num_clocks / 2;
-    int col = panel->num_clocks % 2;
+    // Calculate position - single column layout for better alignment
+    int clock_width = panel->width - 20;  // Full width with margins
+    int clock_height = 45;  // Compact height
+    int row = panel->num_clocks;
 
-    clock->x = panel->x + 10 + col * (clock_width + 10);
-    clock->y = panel->y + 10 + row * (clock_height + 10);
+    clock->x = panel->x + 10;
+    clock->y = panel->y + 10 + row * (clock_height + 8);  // 8px spacing between clocks
     clock->width = clock_width;
     clock->height = clock_height;
 
@@ -112,7 +111,11 @@ void clocks_render_widget(clock_widget_t *clock, SDL_Renderer *renderer,
     time_t now = time(NULL);
     timezone_convert(now, clock->timezone, &local_time);
 
-    // Draw label
+    // Format time string
+    char time_str[16];
+    timezone_format_time_short(&local_time, time_str, sizeof(time_str));
+
+    // Draw label (left side)
     if (font_normal) {
         SDL_Surface *label_surf = TTF_RenderText_Shaded(font_normal, clock->label,
                                                         clock->label_color, COLOR_DARK_BG);
@@ -121,7 +124,7 @@ void clocks_render_widget(clock_widget_t *clock, SDL_Renderer *renderer,
             if (label_tex) {
                 int w, h;
                 SDL_QueryTexture(label_tex, NULL, NULL, &w, &h);
-                SDL_Rect label_rect = {clock->x + 5, clock->y + 5, w, h};
+                SDL_Rect label_rect = {clock->x + 5, clock->y + 8, w, h};
                 SDL_RenderCopy(renderer, label_tex, NULL, &label_rect);
                 SDL_DestroyTexture(label_tex);
             }
@@ -129,47 +132,23 @@ void clocks_render_widget(clock_widget_t *clock, SDL_Renderer *renderer,
         }
     }
 
-    // Format time string
-    char time_str[16];
-    timezone_format_time_short(&local_time, time_str, sizeof(time_str));
-
-    // Draw time
-    if (font_large) {
-        SDL_Surface *time_surf = TTF_RenderText_Shaded(font_large, time_str,
+    // Draw time (right side, aligned to right edge)
+    if (font_normal) {  // Use font_normal for compact time display
+        SDL_Surface *time_surf = TTF_RenderText_Shaded(font_normal, time_str,
                                                        clock->time_color, COLOR_DARK_BG);
         if (time_surf) {
             SDL_Texture *time_tex = SDL_CreateTextureFromSurface(renderer, time_surf);
             if (time_tex) {
                 int w, h;
                 SDL_QueryTexture(time_tex, NULL, NULL, &w, &h);
-                // Center time in widget
-                int x = clock->x + (clock->width - w) / 2;
-                int y = clock->y + (clock->height - h) / 2;
+                // Right-align time in widget with 5px margin
+                int x = clock->x + clock->width - w - 5;
+                int y = clock->y + 10;
                 SDL_Rect time_rect = {x, y, w, h};
                 SDL_RenderCopy(renderer, time_tex, NULL, &time_rect);
                 SDL_DestroyTexture(time_tex);
             }
             SDL_FreeSurface(time_surf);
-        }
-    }
-
-    // Draw timezone abbreviation below time
-    const char *abbrev = timezone_get_abbrev(clock->timezone);
-    if (font_normal) {
-        SDL_Surface *abbrev_surf = TTF_RenderText_Shaded(font_normal, abbrev,
-                                                         COLOR_ACCENT, COLOR_DARK_BG);
-        if (abbrev_surf) {
-            SDL_Texture *abbrev_tex = SDL_CreateTextureFromSurface(renderer, abbrev_surf);
-            if (abbrev_tex) {
-                int w, h;
-                SDL_QueryTexture(abbrev_tex, NULL, NULL, &w, &h);
-                int x = clock->x + (clock->width - w) / 2;
-                int y = clock->y + clock->height - 25;
-                SDL_Rect abbrev_rect = {x, y, w, h};
-                SDL_RenderCopy(renderer, abbrev_tex, NULL, &abbrev_rect);
-                SDL_DestroyTexture(abbrev_tex);
-            }
-            SDL_FreeSurface(abbrev_surf);
         }
     }
 }
@@ -188,23 +167,6 @@ void clocks_render(clock_panel_t *panel, SDL_Renderer *renderer, TTF_Font *font_
     SDL_SetRenderDrawColor(renderer, COLOR_GRID.r, COLOR_GRID.g,
                           COLOR_GRID.b, COLOR_GRID.a);
     SDL_RenderDrawRect(renderer, &panel_rect);
-
-    // Draw title
-    if (font_normal && font_normal != NULL) {
-        SDL_Surface *title_surf = TTF_RenderText_Shaded(font_normal, "Time Clocks",
-                                                        COLOR_ACCENT, COLOR_DARK_BG);
-        if (title_surf) {
-            SDL_Texture *title_tex = SDL_CreateTextureFromSurface(renderer, title_surf);
-            if (title_tex) {
-                int w, h;
-                SDL_QueryTexture(title_tex, NULL, NULL, &w, &h);
-                SDL_Rect title_rect = {panel->x + 10, panel->y + 5, w, h};
-                SDL_RenderCopy(renderer, title_tex, NULL, &title_rect);
-                SDL_DestroyTexture(title_tex);
-            }
-            SDL_FreeSurface(title_surf);
-        }
-    }
 
     // Render each clock
     for (int i = 0; i < panel->num_clocks; i++) {
