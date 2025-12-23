@@ -210,6 +210,66 @@ int main(int argc, char *argv[]) {
         clocks_render(&clock_panel, render_ctx.renderer, fonts.font_large,
                      fonts.font_normal, fonts.font_small);
 
+        // Render space weather data (right side, below clocks)
+        space_weather_t *sw = state_get_space_weather();
+        if (sw && fonts.font_normal) {
+            int sw_x = 820;
+            int sw_y = 470;
+            int sw_width = 190;
+            int sw_height = 180;
+
+            // Draw border around space weather panel
+            SDL_SetRenderDrawColor(render_ctx.renderer, 80, 100, 130, 255);
+            SDL_Rect sw_border = {sw_x, sw_y, sw_width, sw_height};
+            SDL_RenderDrawRect(render_ctx.renderer, &sw_border);
+
+            // Title: "Space Weather"
+            renderer_draw_text(&render_ctx, fonts.font_normal, "Space Weather",
+                              sw_x + 5, sw_y + 5,
+                              (SDL_Color){120, 200, 255, 255},  // Cyan
+                              (SDL_Color){40, 45, 55, 255});
+
+            // Kp Index with color coding
+            SDL_Color kp_color = (SDL_Color){255, 200, 80, 255};  // Default: yellow
+            if (sw->kp_index < 3) {
+                kp_color = (SDL_Color){120, 200, 120, 255};  // Green: quiet
+            } else if (sw->kp_index < 5) {
+                kp_color = (SDL_Color){255, 255, 120, 255};  // Yellow: unsettled
+            } else if (sw->kp_index < 7) {
+                kp_color = (SDL_Color){255, 200, 80, 255};   // Orange: active
+            } else if (sw->kp_index < 9) {
+                kp_color = (SDL_Color){255, 120, 80, 255};   // Red-orange: severe
+            } else {
+                kp_color = (SDL_Color){255, 80, 80, 255};    // Red: extreme
+            }
+
+            char kp_text[32];
+            snprintf(kp_text, sizeof(kp_text), "Kp: %.1f", sw->kp_index);
+            renderer_draw_text(&render_ctx, fonts.font_small, kp_text,
+                              sw_x + 10, sw_y + 35,
+                              kp_color, (SDL_Color){40, 45, 55, 255});
+
+            // Solar Flux
+            SDL_Color flux_color = (SDL_Color){255, 200, 80, 255};  // Default: yellow
+            if (sw->solar_flux < 70) {
+                flux_color = (SDL_Color){120, 200, 120, 255};  // Green: low
+            } else if (sw->solar_flux < 100) {
+                flux_color = (SDL_Color){255, 255, 120, 255};  // Yellow: moderate
+            } else if (sw->solar_flux < 150) {
+                flux_color = (SDL_Color){255, 200, 80, 255};   // Orange: high
+            } else if (sw->solar_flux < 200) {
+                flux_color = (SDL_Color){255, 120, 80, 255};   // Red-orange: very high
+            } else {
+                flux_color = (SDL_Color){255, 80, 80, 255};    // Red: extreme
+            }
+
+            char flux_text[32];
+            snprintf(flux_text, sizeof(flux_text), "Flux: %.0f", sw->solar_flux);
+            renderer_draw_text(&render_ctx, fonts.font_small, flux_text,
+                              sw_x + 10, sw_y + 55,
+                              flux_color, (SDL_Color){40, 45, 55, 255});
+        }
+
         // Present the frame
         renderer_present(&render_ctx);
 
