@@ -3,10 +3,10 @@
 #include <stdlib.h>
 #include <string.h>
 
-// Color palette for clocks
-static const SDL_Color COLOR_DARK_BG = {20, 20, 30, 255};
-static const SDL_Color COLOR_GRID = {60, 60, 80, 255};
-static const SDL_Color COLOR_ACCENT = {0, 200, 255, 255};
+// Color palette for clocks - improved aesthetics
+static const SDL_Color COLOR_DARK_BG = {40, 45, 55, 255};    // Slightly lighter
+static const SDL_Color COLOR_GRID = {80, 100, 130, 255};     // Better contrast
+static const SDL_Color COLOR_ACCENT = {120, 200, 255, 255};  // Softer cyan
 
 // Clock data (stores current time for each clock)
 typedef struct {

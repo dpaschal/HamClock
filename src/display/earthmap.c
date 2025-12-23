@@ -7,14 +7,14 @@
 #define DEG2RAD(d) ((d) * PI / 180.0)
 #define RAD2DEG(r) ((r) * 180.0 / PI)
 
-// Color scheme
-static const SDL_Color COLOR_OCEAN = {20, 60, 120, 255};      // Dark blue
-static const SDL_Color COLOR_LAND = {34, 139, 34, 255};       // Forest green
-static const SDL_Color COLOR_GRID = {64, 64, 96, 255};        // Light grid
-static const SDL_Color COLOR_GREYLINE = {200, 150, 100, 200}; // Tan/twilight
-static const SDL_Color COLOR_DAYSIDE = {255, 255, 100, 30};   // Light yellow
-static const SDL_Color COLOR_NIGHTSIDE = {50, 50, 100, 100};  // Dark blue
-static const SDL_Color COLOR_OBSERVER = {0, 255, 0, 255};     // Bright green
+// Color scheme - improved aesthetics
+static const SDL_Color COLOR_OCEAN = {70, 130, 180, 255};     // Steel blue (more visible)
+static const SDL_Color COLOR_LAND = {107, 142, 70, 255};      // Olive green (muted, realistic)
+static const SDL_Color COLOR_GRID = {100, 120, 160, 255};     // Cool gray-blue
+static const SDL_Color COLOR_GREYLINE = {210, 170, 120, 200}; // Tan/twilight (warmer)
+static const SDL_Color COLOR_DAYSIDE = {255, 255, 150, 40};   // Warm yellow (subtle)
+static const SDL_Color COLOR_NIGHTSIDE = {60, 70, 120, 100};  // Deep blue (less harsh)
+static const SDL_Color COLOR_OBSERVER = {100, 200, 100, 255}; // Softer green
 
 int earthmap_init(earthmap_ctx_t *ctx, SDL_Renderer *renderer,
                  int width, int height) {

@@ -185,13 +185,13 @@ int main(int argc, char *argv[]) {
         // Clear screen first
         renderer_clear(&render_ctx);
 
-        // Render title bar
+        // Render title bar with improved styling
         renderer_fill_rect(&render_ctx, 0, 0, render_ctx.width, 50,
-                          (SDL_Color){60, 60, 80, 255});
+                          (SDL_Color){50, 60, 80, 255});  // Slightly better gradient
         if (fonts.font_large) {
-            renderer_draw_text(&render_ctx, fonts.font_large, "HamClock", 20, 10,
-                              (SDL_Color){0, 200, 255, 255},
-                              (SDL_Color){20, 20, 30, 255});
+            renderer_draw_text(&render_ctx, fonts.font_large, "HamClock v1.0.0", 15, 8,
+                              (SDL_Color){120, 200, 255, 255},  // Softer cyan text
+                              (SDL_Color){50, 60, 80, 255});
         }
 
         // Render world map with greyline (Phase 5)

@@ -5,15 +5,15 @@
 #include <stdio.h>
 #include <string.h>
 
-// Color palette
+// Color palette - improved design
 static const SDL_Color COLOR_BLACK = {0, 0, 0, 255};
 static const SDL_Color COLOR_WHITE = {255, 255, 255, 255};
-static const SDL_Color COLOR_DARK_BG = {20, 20, 30, 255};
-static const SDL_Color COLOR_GRID = {60, 60, 80, 255};
-static const SDL_Color COLOR_ACCENT = {0, 200, 255, 255};  // Cyan for active data
-static const SDL_Color COLOR_WARNING = {255, 200, 0, 255}; // Yellow for warning levels
-static const SDL_Color COLOR_DANGER = {255, 100, 100, 255}; // Red for danger levels
-static const SDL_Color COLOR_SUCCESS = {100, 255, 100, 255}; // Green for good conditions
+static const SDL_Color COLOR_DARK_BG = {40, 45, 55, 255};    // Slightly lighter dark (was too black)
+static const SDL_Color COLOR_GRID = {80, 90, 110, 255};      // Better contrast
+static const SDL_Color COLOR_ACCENT = {100, 200, 255, 255};  // Softer cyan
+static const SDL_Color COLOR_WARNING = {255, 200, 80, 255};  // Warmer yellow
+static const SDL_Color COLOR_DANGER = {255, 120, 120, 255};  // Softer red
+static const SDL_Color COLOR_SUCCESS = {120, 200, 120, 255}; // Muted green
 
 int renderer_init(renderer_context_t *ctx, int width, int height) {
     if (!ctx) {

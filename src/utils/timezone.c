@@ -239,6 +239,20 @@ void timezone_format_datetime(local_time_t *time, char *buf, int buflen) {
 }
 
 const char *timezone_get_abbrev(timezone_t tz) {
+    // Handle local timezone specially
+    if (tz == TZ_LOCAL) {
+        // Return system timezone abbreviation (would be from tzname in real implementation)
+        static char local_abbrev[16];
+        time_t now = time(NULL);
+        struct tm *local_tm = localtime(&now);
+        if (local_tm && local_tm->tm_zone) {
+            strncpy(local_abbrev, local_tm->tm_zone, sizeof(local_abbrev) - 1);
+            local_abbrev[sizeof(local_abbrev) - 1] = '\0';
+            return local_abbrev;
+        }
+        return "Local";
+    }
+
     for (size_t i = 0; i < NUM_TIMEZONES; i++) {
         if (timezone_db[i].id == tz) {
             return timezone_db[i].abbrev;

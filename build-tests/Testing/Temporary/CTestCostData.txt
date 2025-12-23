@@ -1,0 +1,7 @@
+timezone_tests 0 0
+sun_tests 0 0
+maidenhead_tests 0 0
+---
+timezone_tests
+sun_tests
+maidenhead_tests
