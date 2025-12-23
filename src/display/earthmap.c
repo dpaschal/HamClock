@@ -156,8 +156,8 @@ void earthmap_render_base(earthmap_ctx_t *ctx) {
                {-38,148},{-39,141},{-37,135},{-33,130},{-28,128},{-22,128},
                {-18,130},{-14,136},{-10,142}};
 
-    // Draw coastline polylines
-    SDL_SetRenderDrawColor(ctx->renderer, COLOR_LAND.r, COLOR_LAND.g, COLOR_LAND.b, COLOR_LAND.a);
+    // Draw coastline polylines - black coastlines
+    SDL_SetRenderDrawColor(ctx->renderer, 0, 0, 0, 255);  // Black
 
     // Helper to draw polyline
     #define DRAW_POLY(pts, cnt) do { \
