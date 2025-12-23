@@ -23,6 +23,8 @@ int earthmap_init(earthmap_ctx_t *ctx, SDL_Renderer *renderer,
     ctx->renderer = renderer;
     ctx->width = width;
     ctx->height = height;
+    ctx->offset_x = 0;     // Initialize offsets (can be set later)
+    ctx->offset_y = 0;
     ctx->projection = PROJ_MERCATOR;
     ctx->greyline_mode = GREYLINE_FUZZY;
     ctx->show_grid = 1;
@@ -31,7 +33,8 @@ int earthmap_init(earthmap_ctx_t *ctx, SDL_Renderer *renderer,
     ctx->center_longitude = 0;
     ctx->zoom = 1.0;
 
-    log_info("Earthmap initialized: %dx%d with Mercator projection", width, height);
+    log_info("Earthmap initialized: %dx%d with Mercator projection at offset (%d, %d)",
+             width, height, ctx->offset_x, ctx->offset_y);
     return 0;
 }
 
@@ -73,17 +76,22 @@ int earthmap_latlon_to_screen(earthmap_ctx_t *ctx, double lat, double lon,
     double map_x = (proj_x - center_proj_x) * ctx->width / ctx->zoom + ctx->width / 2;
     double map_y = (proj_y - center_proj_y) * ctx->height / ctx->zoom + ctx->height / 2;
 
-    *screen_x = (int)map_x;
-    *screen_y = (int)map_y;
+    // Apply screen position offset
+    *screen_x = (int)map_x + ctx->offset_x;
+    *screen_y = (int)map_y + ctx->offset_y;
 
-    // Return 1 if on-screen
-    return (*screen_x >= 0 && *screen_x < ctx->width &&
-            *screen_y >= 0 && *screen_y < ctx->height);
+    // Return 1 if on-screen (within map bounds, not absolute screen bounds)
+    return ((int)map_x >= 0 && (int)map_x < ctx->width &&
+            (int)map_y >= 0 && (int)map_y < ctx->height);
 }
 
 int earthmap_screen_to_latlon(earthmap_ctx_t *ctx, int screen_x, int screen_y,
                              double *lat, double *lon) {
     if (!ctx) return -1;
+
+    // Remove screen position offset first
+    int map_x = screen_x - ctx->offset_x;
+    int map_y = screen_y - ctx->offset_y;
 
     // Reverse Mercator projection
     // Get center in projected coords
@@ -92,8 +100,8 @@ int earthmap_screen_to_latlon(earthmap_ctx_t *ctx, int screen_x, int screen_y,
                      &center_proj_x, &center_proj_y);
 
     // Convert screen to projection coords
-    double proj_x = (screen_x - ctx->width/2.0) * ctx->zoom / ctx->width + center_proj_x;
-    double proj_y = (screen_y - ctx->height/2.0) * ctx->zoom / ctx->height + center_proj_y;
+    double proj_x = (map_x - ctx->width/2.0) * ctx->zoom / ctx->width + center_proj_x;
+    double proj_y = (map_y - ctx->height/2.0) * ctx->zoom / ctx->height + center_proj_y;
 
     // Reverse Mercator
     *lon = proj_x * 360.0 - 180.0;
@@ -109,10 +117,10 @@ int earthmap_screen_to_latlon(earthmap_ctx_t *ctx, int screen_x, int screen_y,
 void earthmap_render_base(earthmap_ctx_t *ctx) {
     if (!ctx || !ctx->renderer) return;
 
-    // Fill background (ocean)
+    // Fill background (ocean) at correct screen position
     SDL_SetRenderDrawColor(ctx->renderer, COLOR_OCEAN.r, COLOR_OCEAN.g,
                           COLOR_OCEAN.b, COLOR_OCEAN.a);
-    SDL_Rect full = {0, 0, ctx->width, ctx->height};
+    SDL_Rect full = {ctx->offset_x, ctx->offset_y, ctx->width, ctx->height};
     SDL_RenderFillRect(ctx->renderer, &full);
 
     // Draw simplified continents as filled regions
@@ -152,11 +160,14 @@ void earthmap_render_base(earthmap_ctx_t *ctx) {
         earthmap_latlon_to_screen(ctx, cont->lat_min, cont->lon_min, &x1, &y1);
         earthmap_latlon_to_screen(ctx, cont->lat_max, cont->lon_max, &x2, &y2);
 
-        // Draw as filled rectangle
-        int w = x2 - x1;
-        int h = y2 - y1;
-        if (w > 0 && h > 0) {
-            SDL_Rect continent = {x1, y1, w, h};
+        // Handle coordinate order (Mercator flips Y axis)
+        SDL_Rect continent;
+        continent.x = (x1 < x2) ? x1 : x2;
+        continent.y = (y1 < y2) ? y1 : y2;
+        continent.w = (x1 > x2) ? (x1 - x2) : (x2 - x1);
+        continent.h = (y1 > y2) ? (y1 - y2) : (y2 - y1);
+
+        if (continent.w > 0 && continent.h > 0) {
             SDL_RenderFillRect(ctx->renderer, &continent);
         }
     }

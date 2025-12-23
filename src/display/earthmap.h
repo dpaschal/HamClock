@@ -35,6 +35,8 @@ typedef struct {
     SDL_Renderer *renderer;
     int width;
     int height;
+    int offset_x;          // Screen X position (where map starts)
+    int offset_y;          // Screen Y position (where map starts)
     map_projection_t projection;
     greyline_mode_t greyline_mode;
     int show_grid;         // 1 = show lat/lon grid

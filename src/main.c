@@ -118,6 +118,11 @@ int main(int argc, char *argv[]) {
 
     if (earthmap_init(&map_ctx, render_ctx.renderer, 800, 500) != 0) {
         log_warn("Failed to initialize earthmap");
+    } else {
+        // Set the screen position for the map (top-left corner at 10, 60)
+        map_ctx.offset_x = 10;
+        map_ctx.offset_y = 60;
+        log_info("Earthmap positioned at (%d, %d)", map_ctx.offset_x, map_ctx.offset_y);
     }
 
     // Initialize clock panel (Phase 6)
@@ -177,11 +182,20 @@ int main(int argc, char *argv[]) {
             .moon_phase_name = moon_pos.phase_name
         };
 
-        // Render world map with greyline (Phase 5)
-        // Position map on left side of screen
-        SDL_Rect map_rect = {10, 60, 800, 500};
+        // Clear screen first
+        renderer_clear(&render_ctx);
 
-        // Render map components
+        // Render title bar
+        renderer_fill_rect(&render_ctx, 0, 0, render_ctx.width, 50,
+                          (SDL_Color){60, 60, 80, 255});
+        if (fonts.font_large) {
+            renderer_draw_text(&render_ctx, fonts.font_large, "HamClock", 20, 10,
+                              (SDL_Color){0, 200, 255, 255},
+                              (SDL_Color){20, 20, 30, 255});
+        }
+
+        // Render world map with greyline (Phase 5)
+        SDL_Rect map_rect = {10, 60, 800, 500};
         earthmap_render_base(&map_ctx);
         earthmap_render_grid(&map_ctx);
         earthmap_render_greyline(&map_ctx, &sun_pos);
@@ -196,8 +210,8 @@ int main(int argc, char *argv[]) {
         clocks_render(&clock_panel, render_ctx.renderer, fonts.font_large,
                      fonts.font_normal, fonts.font_small);
 
-        // Render current frame with NOAA, sun, and moon data
-        renderer_render_frame(&render_ctx, &fonts, &render_sun, &render_moon);
+        // Present the frame
+        renderer_present(&render_ctx);
 
         // Limit frame rate
         renderer_limit_frame_rate(&render_ctx);
