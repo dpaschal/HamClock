@@ -268,6 +268,52 @@ int main(int argc, char *argv[]) {
             renderer_draw_text(&render_ctx, fonts.font_small, flux_text,
                               sw_x + 10, sw_y + 55,
                               flux_color, (SDL_Color){40, 45, 55, 255});
+
+            // A-Index
+            SDL_Color a_color = (SDL_Color){255, 200, 80, 255};  // Default: yellow
+            if (sw->a_index < 8) {
+                a_color = (SDL_Color){120, 200, 120, 255};  // Green: quiet
+            } else if (sw->a_index < 16) {
+                a_color = (SDL_Color){255, 255, 120, 255};  // Yellow: unsettled
+            } else if (sw->a_index < 30) {
+                a_color = (SDL_Color){255, 200, 80, 255};   // Orange: active
+            } else if (sw->a_index < 50) {
+                a_color = (SDL_Color){255, 120, 80, 255};   // Red-orange: severe
+            } else {
+                a_color = (SDL_Color){255, 80, 80, 255};    // Red: extreme
+            }
+
+            char a_text[32];
+            snprintf(a_text, sizeof(a_text), "A: %.1f", sw->a_index);
+            renderer_draw_text(&render_ctx, fonts.font_small, a_text,
+                              sw_x + 10, sw_y + 75,
+                              a_color, (SDL_Color){40, 45, 55, 255});
+
+            // X-ray Flux
+            SDL_Color xray_color = (SDL_Color){255, 200, 80, 255};  // Default
+            if (sw->xray_flux[0] != '\0') {
+                // Color based on first character (R, S, X, A, etc.)
+                char flux_class = sw->xray_flux[0];
+                if (flux_class == 'R') {
+                    xray_color = (SDL_Color){255, 80, 80, 255};    // Red: radio blackout
+                } else if (flux_class == 'S') {
+                    xray_color = (SDL_Color){255, 120, 80, 255};   // Red-orange: solar radiation
+                } else if (flux_class == 'G') {
+                    xray_color = (SDL_Color){255, 200, 80, 255};   // Orange: geomagnetic storm
+                } else if (flux_class == 'P') {
+                    xray_color = (SDL_Color){255, 255, 120, 255};  // Yellow: proton event
+                } else if (flux_class == 'X') {
+                    xray_color = (SDL_Color){255, 80, 80, 255};    // Red: extreme X-ray
+                } else if (flux_class == 'A') {
+                    xray_color = (SDL_Color){120, 200, 120, 255};  // Green: none/quiet
+                }
+            }
+
+            char xray_text[32];
+            snprintf(xray_text, sizeof(xray_text), "X-ray: %s", sw->xray_flux[0] != '\0' ? sw->xray_flux : "N/A");
+            renderer_draw_text(&render_ctx, fonts.font_small, xray_text,
+                              sw_x + 10, sw_y + 95,
+                              xray_color, (SDL_Color){40, 45, 55, 255});
         }
 
         // Present the frame
