@@ -123,35 +123,38 @@ void earthmap_render_base(earthmap_ctx_t *ctx) {
     SDL_Rect ocean = {ctx->offset_x, ctx->offset_y, ctx->width, ctx->height};
     SDL_RenderFillRect(ctx->renderer, &ocean);
 
-    // Draw simple procedural world map
-    // This creates basic land masses in green
+    // Draw world map using proper lat/lon to screen coordinates
     SDL_SetRenderDrawColor(ctx->renderer, 107, 142, 70, 255);  // Olive green for land
 
-    // Define continent rectangles (simplified but effective)
-    struct { int x, y, w, h; } continents[] = {
-        // North America
-        {ctx->offset_x + 50, ctx->offset_y + 80, 140, 130},
-        // South America
-        {ctx->offset_x + 90, ctx->offset_y + 220, 70, 140},
-        // Europe & Africa
-        {ctx->offset_x + 260, ctx->offset_y + 50, 200, 300},
-        // Asia
-        {ctx->offset_x + 380, ctx->offset_y + 70, 280, 250},
-        // Australia
-        {ctx->offset_x + 570, ctx->offset_y + 280, 70, 90},
-        // Greenland
-        {ctx->offset_x + 30, ctx->offset_y + 20, 40, 50},
+    // Continent bounds: (lat_min, lat_max, lon_min, lon_max)
+    struct { double lat_min, lat_max, lon_min, lon_max; } continents[] = {
+        {25.0, 50.0, -130.0, -65.0},      // North America
+        {-56.0, 12.0, -82.0, -35.0},      // South America
+        {35.0, 71.0, -11.0, 41.0},        // Europe
+        {-35.0, 37.0, -18.0, 52.0},       // Africa
+        {15.0, 77.0, 26.0, 180.0},        // Asia
+        {-47.0, -10.0, 113.0, 155.0},     // Australia
+        {60.0, 84.0, -73.0, -11.0},       // Greenland
     };
 
-    // Draw all continents
-    for (int i = 0; i < 6; i++) {
-        SDL_RenderFillRect(ctx->renderer, (SDL_Rect*)&continents[i]);
-    }
+    // Draw each continent
+    for (int i = 0; i < 7; i++) {
+        int x1, y1, x2, y2;
+        earthmap_latlon_to_screen(ctx, continents[i].lat_min, continents[i].lon_min, &x1, &y1);
+        earthmap_latlon_to_screen(ctx, continents[i].lat_max, continents[i].lon_max, &x2, &y2);
 
-    // Draw coastline borders for definition
-    SDL_SetRenderDrawColor(ctx->renderer, 40, 80, 60, 255);  // Dark green outline
-    for (int i = 0; i < 6; i++) {
-        SDL_RenderDrawRect(ctx->renderer, (SDL_Rect*)&continents[i]);
+        SDL_Rect rect;
+        rect.x = (x1 < x2) ? x1 : x2;
+        rect.y = (y1 < y2) ? y1 : y2;
+        rect.w = (x1 > x2) ? (x1 - x2) : (x2 - x1);
+        rect.h = (y1 > y2) ? (y1 - y2) : (y2 - y1);
+
+        if (rect.w > 0 && rect.h > 0) {
+            SDL_SetRenderDrawColor(ctx->renderer, 107, 142, 70, 255);  // Green
+            SDL_RenderFillRect(ctx->renderer, &rect);
+            SDL_SetRenderDrawColor(ctx->renderer, 40, 80, 60, 255);    // Dark outline
+            SDL_RenderDrawRect(ctx->renderer, &rect);
+        }
     }
 }
 
