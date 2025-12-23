@@ -2,6 +2,7 @@
 #include "../core/log.h"
 #include <math.h>
 #include <string.h>
+#include <SDL2/SDL_image.h>
 
 #define PI 3.14159265358979323846
 #define DEG2RAD(d) ((d) * PI / 180.0)
@@ -117,65 +118,40 @@ int earthmap_screen_to_latlon(earthmap_ctx_t *ctx, int screen_x, int screen_y,
 void earthmap_render_base(earthmap_ctx_t *ctx) {
     if (!ctx || !ctx->renderer) return;
 
-    // Ocean background
+    // Draw ocean background
     SDL_SetRenderDrawColor(ctx->renderer, COLOR_OCEAN.r, COLOR_OCEAN.g, COLOR_OCEAN.b, COLOR_OCEAN.a);
     SDL_Rect ocean = {ctx->offset_x, ctx->offset_y, ctx->width, ctx->height};
     SDL_RenderFillRect(ctx->renderer, &ocean);
 
-    // Vector coastline data (lat/lon points)
-    typedef struct { double lat, lon; } pt;
+    // Load and render world map image
+    static SDL_Texture *map_texture = NULL;
 
-    // North America (realistic shape)
-    pt na[] = {{49,-141},{65,-130},{68,-110},{65,-95},{60,-85},{55,-80},
-               {45,-75},{40,-72},{35,-75},{28,-80},{25,-83},{26,-97},{28,-97},
-               {26,-95},{25,-100},{28,-105},{32,-114},{35,-120},{38,-122},
-               {40,-125},{43,-124},{46,-124},{49,-123},{50,-125},{52,-127},
-               {54,-130},{56,-135},{58,-138},{60,-141}};
+    if (!map_texture) {
+        // Try to load map image (first load only)
+        SDL_Surface *map_surface = IMG_Load("data/maps/world.png");
+        if (map_surface) {
+            map_texture = SDL_CreateTextureFromSurface(ctx->renderer, map_surface);
+            SDL_FreeSurface(map_surface);
+            if (!map_texture) {
+                log_warn("Failed to create texture from world map image");
+            }
+        } else {
+            log_warn("Failed to load world map image: data/maps/world.png");
+        }
+    }
 
-    // South America
-    pt sa[] = {{12,-69},{8,-62},{4,-55},{1,-48},{-3,-45},{-8,-40},{-12,-38},
-               {-18,-40},{-22,-48},{-28,-50},{-33,-55},{-38,-60},{-45,-68},
-               {-52,-75},{-54,-72},{-50,-74},{-45,-70},{-38,-70},{-25,-70},
-               {-15,-72},{-5,-80},{0,-77},{5,-72},{10,-68},{12,-69}};
-
-    // Africa-Europe-Mideast
-    pt af[] = {{35,-5},{37,-3},{40,2},{42,8},{40,15},{38,25},{35,30},{31,33},
-               {28,35},{24,35},{22,38},{18,40},{10,42},{5,40},{2,35},{0,32},
-               {-3,30},{-8,25},{-12,20},{-15,10},{-18,5},{-22,-5},{-28,-15},
-               {-32,-25},{-30,15},{-25,30},{-15,40},{0,42},{10,35},{20,40},{35,-5}};
-
-    // Asia (huge)
-    pt as[] = {{45,60},{52,70},{58,90},{62,110},{65,135},{67,160},{65,170},
-               {58,165},{52,150},{48,145},{45,140},{40,145},{35,140},{30,130},
-               {28,120},{25,119},{22,112},{20,108},{15,103},{10,95},{5,92},
-               {2,98},{-2,103},{-8,110},{-15,130},{-18,140},{-10,150},{0,140},
-               {10,130},{20,125},{28,125},{35,135},{40,145},{45,60}};
-
-    // Australia
-    pt au[] = {{-10,142},{-14,146},{-18,148},{-22,152},{-28,154},{-34,152},
-               {-38,148},{-39,141},{-37,135},{-33,130},{-28,128},{-22,128},
-               {-18,130},{-14,136},{-10,142}};
-
-    // Draw coastline polylines - black coastlines
-    SDL_SetRenderDrawColor(ctx->renderer, 0, 0, 0, 255);  // Black
-
-    // Helper to draw polyline
-    #define DRAW_POLY(pts, cnt) do { \
-        int px=-1, py=-1; \
-        for(int i=0; i<cnt; i++) { \
-            int x, y; \
-            if(earthmap_latlon_to_screen(ctx, pts[i].lat, pts[i].lon, &x, &y)) { \
-                if(px>=0) SDL_RenderDrawLine(ctx->renderer, px, py, x, y); \
-                px=x; py=y; \
-            } \
-        } \
-    } while(0)
-
-    DRAW_POLY(na, 29);
-    DRAW_POLY(sa, 25);
-    DRAW_POLY(af, 30);
-    DRAW_POLY(as, 32);
-    DRAW_POLY(au, 15);
+    // Render map texture if available
+    if (map_texture) {
+        SDL_Rect map_rect = {ctx->offset_x, ctx->offset_y, ctx->width, ctx->height};
+        SDL_RenderCopy(ctx->renderer, map_texture, NULL, &map_rect);
+    } else {
+        // Fallback: simple continents if map unavailable
+        SDL_SetRenderDrawColor(ctx->renderer, 107, 142, 70, 255);  // Green
+        SDL_Rect continent = {ctx->offset_x + 50, ctx->offset_y + 50, 150, 120};
+        SDL_RenderFillRect(ctx->renderer, &continent);
+        continent = (SDL_Rect){ctx->offset_x + 250, ctx->offset_y + 200, 100, 80};
+        SDL_RenderFillRect(ctx->renderer, &continent);
+    }
 }
 
 void earthmap_render_grid(earthmap_ctx_t *ctx) {
